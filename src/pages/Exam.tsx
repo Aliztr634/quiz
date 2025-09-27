@@ -1,0 +1,381 @@
+import React, { useState, useEffect, useCallback } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import {
+  Box,
+  AppBar,
+  Toolbar,
+  Typography,
+  Button,
+  Container,
+  Card,
+  CardContent,
+  LinearProgress,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
+  CircularProgress,
+  IconButton
+} from '@mui/material'
+import { AccessTime, ArrowBack, ArrowForward, CheckCircle } from '@mui/icons-material'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
+import type { Question } from '../types'
+
+const Exam: React.FC = () => {
+  const { examId } = useParams<{ examId: string }>()
+  const { } = useAuth()
+  const navigate = useNavigate()
+  
+  // Get attemptId from URL search params
+  const searchParams = new URLSearchParams(window.location.search)
+  const attemptId = searchParams.get('attempt')
+  
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [answers, setAnswers] = useState<Map<string, number>>(new Map())
+  const [timeLeft, setTimeLeft] = useState(0)
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const currentQuestion = questions[currentQuestionIndex]
+  const totalQuestions = questions.length
+  const isLastQuestion = currentQuestionIndex === totalQuestions - 1
+
+  const loadExam = useCallback(async () => {
+    if (!examId || !attemptId) return
+
+    try {
+      setLoading(true)
+      
+      // Load questions
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('exam_id', examId)
+        .order('question_order')
+
+      if (questionsError) {
+        setError('Failed to load exam questions')
+        return
+      }
+
+      setQuestions(questionsData || [])
+
+      // Load existing answers
+      const { data: answersData } = await supabase
+        .from('answers')
+        .select('*')
+        .eq('attempt_id', attemptId)
+
+      const answersMap = new Map<string, number>()
+      answersData?.forEach(answer => {
+        answersMap.set(answer.question_id, answer.selected_option)
+      })
+      setAnswers(answersMap)
+
+      // Set timer for first question
+      if (questionsData && questionsData.length > 0) {
+        setTimeLeft(questionsData[0].timer_seconds)
+      }
+
+    } catch (err) {
+      setError('An error occurred while loading the exam')
+    } finally {
+      setLoading(false)
+    }
+  }, [examId, attemptId])
+
+  useEffect(() => {
+    loadExam()
+  }, [loadExam])
+
+  // Timer effect
+  useEffect(() => {
+    if (timeLeft <= 0 || isSubmitted) return
+
+    const timer = setTimeout(() => {
+      setTimeLeft(timeLeft - 1)
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [timeLeft, isSubmitted])
+
+  // Auto-advance when timer reaches 0
+  useEffect(() => {
+    if (timeLeft === 0 && !isSubmitted && currentQuestion) {
+      handleNextQuestion()
+    }
+  }, [timeLeft, isSubmitted, currentQuestion])
+
+  const handleAnswerSelect = (optionIndex: number) => {
+    if (!currentQuestion || isSubmitted) return
+
+    const newAnswers = new Map(answers)
+    newAnswers.set(currentQuestion.id, optionIndex)
+    setAnswers(newAnswers)
+
+    // Save answer to database
+    saveAnswer(currentQuestion.id, optionIndex)
+  }
+
+  const saveAnswer = async (questionId: string, selectedOption: number) => {
+    if (!attemptId) return
+
+    try {
+      const isCorrect = selectedOption === currentQuestion?.correct_answer
+      
+      const { error } = await supabase
+        .from('answers')
+        .upsert({
+          attempt_id: attemptId,
+          question_id: questionId,
+          selected_option: selectedOption,
+          is_correct: isCorrect,
+          answered_at: new Date().toISOString()
+        })
+
+      if (error) {
+        console.error('Error saving answer:', error)
+      }
+    } catch (err) {
+      console.error('Error saving answer:', err)
+    }
+  }
+
+  const handleNextQuestion = () => {
+    if (isLastQuestion) {
+      handleSubmitExam()
+    } else {
+      setCurrentQuestionIndex(currentQuestionIndex + 1)
+      setTimeLeft(questions[currentQuestionIndex + 1]?.timer_seconds || 0)
+    }
+  }
+
+  const handlePreviousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1)
+      setTimeLeft(questions[currentQuestionIndex - 1]?.timer_seconds || 0)
+    }
+  }
+
+  const handleSubmitExam = async () => {
+    if (!attemptId || isSubmitted) return
+
+    try {
+      setIsSubmitted(true)
+
+      // Calculate score
+      const { data: answersData } = await supabase
+        .from('answers')
+        .select('*')
+        .eq('attempt_id', attemptId)
+
+      const correctAnswers = answersData?.filter(answer => answer.is_correct).length || 0
+      const totalQuestions = answersData?.length || 0
+      const score = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0
+
+      // Update exam attempt
+      const { error: updateError } = await supabase
+        .from('exam_attempts')
+        .update({
+          completed_at: new Date().toISOString(),
+          score: score,
+          correct_answers: correctAnswers,
+          total_questions: totalQuestions
+        })
+        .eq('id', attemptId)
+
+      if (updateError) {
+        console.error('Error updating exam attempt:', updateError)
+      }
+
+      // Navigate back to student dashboard (results tab)
+      navigate('/?tab=results')
+    } catch (err) {
+      console.error('Error submitting exam:', err)
+    }
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  if (loading) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CircularProgress size={60} />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Card sx={{ p: 4, textAlign: 'center', maxWidth: 400 }}>
+          <Typography variant="h4" gutterBottom color="error">
+            Error
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 3 }}>
+            {error}
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => navigate('/')}
+          >
+            Back to Dashboard
+          </Button>
+        </Card>
+      </Box>
+    )
+  }
+
+  if (!currentQuestion) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Card sx={{ p: 4, textAlign: 'center', maxWidth: 400 }}>
+          <Typography variant="h4" gutterBottom>
+            No Questions Found
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 3 }}>
+            This exam doesn't have any questions yet.
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => navigate('/')}
+          >
+            Back to Dashboard
+          </Button>
+        </Card>
+      </Box>
+    )
+  }
+
+  return (
+    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
+      {/* Header */}
+      <AppBar position="static" color="default" elevation={1}>
+        <Toolbar>
+          <IconButton
+            edge="start"
+            color="inherit"
+            onClick={() => navigate('/')}
+            sx={{ mr: 2 }}
+          >
+            <ArrowBack />
+          </IconButton>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Back to Dashboard
+          </Typography>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AccessTime color={timeLeft <= 10 ? 'error' : 'primary'} />
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontFamily: 'monospace',
+                  color: timeLeft <= 10 ? 'error.main' : 'text.primary'
+                }}
+              >
+                {formatTime(timeLeft)}
+              </Typography>
+            </Box>
+            
+            <Typography variant="body2" color="text.secondary">
+              Question {currentQuestionIndex + 1} of {totalQuestions}
+            </Typography>
+          </Box>
+        </Toolbar>
+      </AppBar>
+
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Card>
+          <CardContent sx={{ p: 4 }}>
+            {/* Progress Bar */}
+            <Box sx={{ mb: 4 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Progress
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {Math.round(((currentQuestionIndex + 1) / totalQuestions) * 100)}%
+                </Typography>
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={((currentQuestionIndex + 1) / totalQuestions) * 100}
+                sx={{ height: 8, borderRadius: 4 }}
+              />
+            </Box>
+
+            {/* Question */}
+            <Box sx={{ mb: 4 }}>
+              <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
+                {currentQuestion.question_text}
+              </Typography>
+
+              <FormControl component="fieldset" sx={{ width: '100%' }}>
+                <RadioGroup
+                  value={answers.get(currentQuestion.id) ?? ''}
+                  onChange={(e) => handleAnswerSelect(parseInt(e.target.value))}
+                >
+                  {currentQuestion.options.map((option, index) => (
+                    <FormControlLabel
+                      key={index}
+                      value={index}
+                      control={<Radio />}
+                      label={
+                        <Typography variant="body1" sx={{ ml: 1 }}>
+                          {option}
+                        </Typography>
+                      }
+                      sx={{
+                        p: 2,
+                        mb: 1,
+                        border: '1px solid',
+                        borderColor: answers.get(currentQuestion.id) === index ? 'primary.main' : 'grey.300',
+                        borderRadius: 2,
+                        bgcolor: answers.get(currentQuestion.id) === index ? 'primary.50' : 'transparent',
+                        '&:hover': {
+                          borderColor: 'primary.main',
+                          bgcolor: 'primary.50'
+                        }
+                      }}
+                    />
+                  ))}
+                </RadioGroup>
+              </FormControl>
+            </Box>
+
+            {/* Navigation */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+              <Button
+                variant="outlined"
+                startIcon={<ArrowBack />}
+                onClick={handlePreviousQuestion}
+                disabled={currentQuestionIndex === 0}
+              >
+                Previous
+              </Button>
+
+              <Button
+                variant="contained"
+                endIcon={isLastQuestion ? <CheckCircle /> : <ArrowForward />}
+                onClick={handleNextQuestion}
+                disabled={isSubmitted}
+              >
+                {isLastQuestion ? 'Submit Exam' : 'Next'}
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
+  )
+}
+
+export default Exam

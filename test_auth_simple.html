@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Authentication</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Test Authentication</h1>
+    <div id="status"></div>
+    
+    <h2>Test Database Access</h2>
+    <button id="testDb">Test Database Connection</button>
+    
+    <h2>Test Sign Up</h2>
+    <form id="signupForm">
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <input type="text" id="name" placeholder="Name" required>
+        <select id="role" required>
+            <option value="admin">Admin</option>
+            <option value="instructor">Instructor</option>
+            <option value="student">Student</option>
+        </select>
+        <button type="submit">Sign Up</button>
+    </form>
+    
+    <h2>Test Sign In</h2>
+    <form id="signinForm">
+        <input type="text" id="signinUsername" placeholder="Username" required>
+        <input type="password" id="signinPassword" placeholder="Password" required>
+        <button type="submit">Sign In</button>
+    </form>
+    
+    <div id="results"></div>
+
+    <script>
+        // Replace with your actual Supabase credentials
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        function updateStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.innerHTML = `<p style="color: ${isError ? 'red' : 'green'}">${message}</p>`;
+        }
+        
+        function updateResults(data) {
+            const results = document.getElementById('results');
+            results.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        }
+        
+        // Test database access
+        document.getElementById('testDb').addEventListener('click', async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .limit(5);
+                
+                if (error) {
+                    updateStatus(`Database error: ${error.message}`, true);
+                    updateResults(error);
+                } else {
+                    updateStatus('Database access successful!');
+                    updateResults(data);
+                }
+            } catch (err) {
+                updateStatus(`Error: ${err.message}`, true);
+                updateResults(err);
+            }
+        });
+        
+        // Test sign up
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const name = document.getElementById('name').value;
+            const role = document.getElementById('role').value;
+            
+            try {
+                // Simple password hashing (in production, use bcrypt)
+                const hashedPassword = btoa(password); // This is just for testing!
+                
+                const { data, error } = await supabase
+                    .from('users')
+                    .insert([{
+                        username,
+                        password: hashedPassword,
+                        name,
+                        role
+                    }])
+                    .select()
+                    .single();
+                
+                if (error) {
+                    updateStatus(`Sign up error: ${error.message}`, true);
+                    updateResults(error);
+                } else {
+                    updateStatus('Sign up successful!');
+                    updateResults(data);
+                }
+            } catch (err) {
+                updateStatus(`Error: ${err.message}`, true);
+                updateResults(err);
+            }
+        });
+        
+        // Test sign in
+        document.getElementById('signinForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('signinUsername').value;
+            const password = document.getElementById('signinPassword').value;
+            
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('username', username)
+                    .single();
+                
+                if (error) {
+                    updateStatus(`Sign in error: ${error.message}`, true);
+                    updateResults(error);
+                } else {
+                    // Simple password check (in production, use bcrypt)
+                    const hashedPassword = btoa(password);
+                    if (data.password === hashedPassword) {
+                        updateStatus('Sign in successful!');
+                        updateResults(data);
+                    } else {
+                        updateStatus('Invalid password', true);
+                    }
+                }
+            } catch (err) {
+                updateStatus(`Error: ${err.message}`, true);
+                updateResults(err);
+            }
+        });
+    </script>
+</body>
+</html>
