@@ -68,6 +68,12 @@ const Exam: React.FC = () => {
       setLoading(true)
       console.log('Loading exam:', examId, 'attempt:', attemptId)
       
+      // ALWAYS reset to first question when loading exam
+      setCurrentQuestionIndex(0)
+      setTimerExpired(false)
+      setError('')
+      console.log('Force reset to first question, index:', 0)
+      
       // First, verify the exam exists and is active
       const { data: examData, error: examError } = await supabase
         .from('exams')
@@ -105,12 +111,6 @@ const Exam: React.FC = () => {
         return
       }
 
-      // Reset to first question and clear any previous state
-      setCurrentQuestionIndex(0)
-      setTimerExpired(false)
-      setError('')
-      console.log('Reset to first question, index:', 0)
-
       // Load existing answers
       const { data: answersData } = await supabase
         .from('answers')
@@ -123,10 +123,10 @@ const Exam: React.FC = () => {
       })
       setAnswers(answersMap)
 
-      // Set timer for first question
+      // Set timer for first question (index 0)
       if (questionsData && questionsData.length > 0) {
         setTimeLeft(questionsData[0].timer_seconds)
-        console.log('Set timer for first question:', questionsData[0].timer_seconds)
+        console.log('Set timer for first question (index 0):', questionsData[0].timer_seconds)
       }
 
     } catch (err) {
@@ -138,10 +138,22 @@ const Exam: React.FC = () => {
   }, [examId, attemptId])
 
   useEffect(() => {
-    // Reset to first question when component mounts
+    // ALWAYS reset to first question when component mounts
     setCurrentQuestionIndex(0)
+    setTimerExpired(false)
+    console.log('Component mounted - forcing reset to question 0')
     loadExam()
   }, [loadExam])
+
+  // Additional safeguard: ensure we're always at question 0 when questions load
+  useEffect(() => {
+    if (questions.length > 0 && currentQuestionIndex !== 0) {
+      console.log('Questions loaded but not at index 0, forcing reset to 0')
+      setCurrentQuestionIndex(0)
+      setTimeLeft(questions[0].timer_seconds)
+      setTimerExpired(false)
+    }
+  }, [questions, currentQuestionIndex])
 
   // Timer effect
   useEffect(() => {
@@ -387,6 +399,15 @@ const Exam: React.FC = () => {
               <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
                 Question {safeQuestionIndex + 1}: {currentQuestion.question_text}
               </Typography>
+              
+              {/* Debug info to confirm we're starting at question 1 */}
+              {safeQuestionIndex === 0 && (
+                <Box sx={{ mb: 2, p: 1, bgcolor: 'success.50', borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
+                  <Typography variant="body2" color="success.dark" sx={{ fontWeight: 500 }}>
+                    ✓ Starting with Question 1 (Index 0)
+                  </Typography>
+                </Box>
+              )}
 
               {timerExpired && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
