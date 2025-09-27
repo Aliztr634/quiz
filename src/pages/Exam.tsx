@@ -44,10 +44,31 @@ const Exam: React.FC = () => {
   const isLastQuestion = currentQuestionIndex === totalQuestions - 1
 
   const loadExam = useCallback(async () => {
-    if (!examId || !attemptId) return
+    if (!examId || !attemptId) {
+      console.error('Missing examId or attemptId:', { examId, attemptId })
+      setError('Invalid exam link')
+      return
+    }
 
     try {
       setLoading(true)
+      console.log('Loading exam:', examId, 'attempt:', attemptId)
+      
+      // First, verify the exam exists and is active
+      const { data: examData, error: examError } = await supabase
+        .from('exams')
+        .select('*')
+        .eq('id', examId)
+        .eq('is_active', true)
+        .single()
+
+      if (examError || !examData) {
+        console.error('Exam not found or inactive:', examError)
+        setError('Exam not found or is no longer available')
+        return
+      }
+
+      console.log('Exam found:', examData)
       
       // Load questions
       const { data: questionsData, error: questionsError } = await supabase
@@ -57,11 +78,18 @@ const Exam: React.FC = () => {
         .order('question_order')
 
       if (questionsError) {
+        console.error('Error loading questions:', questionsError)
         setError('Failed to load exam questions')
         return
       }
 
+      console.log('Questions loaded:', questionsData)
       setQuestions(questionsData || [])
+
+      if (!questionsData || questionsData.length === 0) {
+        setError('This exam has no questions yet')
+        return
+      }
 
       // Load existing answers
       const { data: answersData } = await supabase
@@ -81,6 +109,7 @@ const Exam: React.FC = () => {
       }
 
     } catch (err) {
+      console.error('Error loading exam:', err)
       setError('An error occurred while loading the exam')
     } finally {
       setLoading(false)

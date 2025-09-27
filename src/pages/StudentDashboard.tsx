@@ -153,12 +153,41 @@ const StudentDashboard: React.FC = () => {
   }
 
   const handleConfirmStartExam = async () => {
-    if (!confirmDialog.exam || !user) return
+    if (!confirmDialog.exam || !user) {
+      setError('Invalid exam or user data')
+      return
+    }
 
     setLoading(true)
     setError('')
     
     try {
+      console.log('Starting exam:', confirmDialog.exam.id)
+      
+      // First, verify the exam still exists and has questions
+      const { data: examData, error: examError } = await supabase
+        .from('exams')
+        .select(`
+          *,
+          questions(id)
+        `)
+        .eq('id', confirmDialog.exam.id)
+        .eq('is_active', true)
+        .single()
+
+      if (examError || !examData) {
+        console.error('Exam not found or inactive:', examError)
+        setError('Exam not found or is no longer available')
+        return
+      }
+
+      if (!examData.questions || examData.questions.length === 0) {
+        setError('This exam has no questions yet. Please contact your instructor.')
+        return
+      }
+
+      console.log('Exam verified, creating attempt...')
+      
       let attemptId: string
 
       // Check if there's already an attempt
@@ -169,6 +198,7 @@ const StudentDashboard: React.FC = () => {
       if (existingAttempt) {
         // Resume existing attempt
         attemptId = existingAttempt.id
+        console.log('Resuming existing attempt:', attemptId)
       } else {
         // Create new attempt
         const { data: attemptData, error: attemptError } = await supabase
@@ -183,18 +213,20 @@ const StudentDashboard: React.FC = () => {
 
         if (attemptError) {
           console.error('Error creating exam attempt:', attemptError)
-          setError('Failed to start exam')
+          setError('Failed to start exam: ' + attemptError.message)
           return
         }
 
         attemptId = attemptData.id
+        console.log('Created new attempt:', attemptId)
       }
 
       // Navigate to exam page
+      console.log('Navigating to exam:', `/exam/${confirmDialog.exam.id}?attempt=${attemptId}`)
       window.location.href = `/exam/${confirmDialog.exam.id}?attempt=${attemptId}`
     } catch (err) {
       console.error('Error starting exam:', err)
-      setError('Failed to start exam')
+      setError('Failed to start exam: ' + (err as Error).message)
     } finally {
       setLoading(false)
       setConfirmDialog({ open: false, exam: null, action: 'start' })
