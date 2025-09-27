@@ -39,9 +39,21 @@ const Exam: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const currentQuestion = questions[currentQuestionIndex]
+  // Ensure currentQuestionIndex is within bounds
+  const safeQuestionIndex = Math.max(0, Math.min(currentQuestionIndex, questions.length - 1))
+  const currentQuestion = questions[safeQuestionIndex]
   const totalQuestions = questions.length
-  const isLastQuestion = currentQuestionIndex === totalQuestions - 1
+  const isLastQuestion = safeQuestionIndex === totalQuestions - 1
+
+  // Debug logging
+  console.log('Exam Debug:', {
+    totalQuestions,
+    currentQuestionIndex,
+    safeQuestionIndex,
+    currentQuestion: currentQuestion?.question_text,
+    isLastQuestion,
+    answers: Array.from(answers.entries())
+  })
 
   const loadExam = useCallback(async () => {
     if (!examId || !attemptId) {
@@ -91,6 +103,10 @@ const Exam: React.FC = () => {
         return
       }
 
+      // Reset to first question
+      setCurrentQuestionIndex(0)
+      console.log('Reset to first question, index:', 0)
+
       // Load existing answers
       const { data: answersData } = await supabase
         .from('answers')
@@ -106,6 +122,7 @@ const Exam: React.FC = () => {
       // Set timer for first question
       if (questionsData && questionsData.length > 0) {
         setTimeLeft(questionsData[0].timer_seconds)
+        console.log('Set timer for first question:', questionsData[0].timer_seconds)
       }
 
     } catch (err) {
@@ -117,6 +134,8 @@ const Exam: React.FC = () => {
   }, [examId, attemptId])
 
   useEffect(() => {
+    // Reset to first question when component mounts
+    setCurrentQuestionIndex(0)
     loadExam()
   }, [loadExam])
 
@@ -177,15 +196,19 @@ const Exam: React.FC = () => {
     if (isLastQuestion) {
       handleSubmitExam()
     } else {
-      setCurrentQuestionIndex(currentQuestionIndex + 1)
-      setTimeLeft(questions[currentQuestionIndex + 1]?.timer_seconds || 0)
+      const nextIndex = safeQuestionIndex + 1
+      setCurrentQuestionIndex(nextIndex)
+      setTimeLeft(questions[nextIndex]?.timer_seconds || 0)
+      console.log('Moving to next question:', nextIndex)
     }
   }
 
   const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1)
-      setTimeLeft(questions[currentQuestionIndex - 1]?.timer_seconds || 0)
+    if (safeQuestionIndex > 0) {
+      const prevIndex = safeQuestionIndex - 1
+      setCurrentQuestionIndex(prevIndex)
+      setTimeLeft(questions[prevIndex]?.timer_seconds || 0)
+      console.log('Moving to previous question:', prevIndex)
     }
   }
 
@@ -315,7 +338,7 @@ const Exam: React.FC = () => {
             </Box>
             
             <Typography variant="body2" color="text.secondary">
-              Question {currentQuestionIndex + 1} of {totalQuestions}
+              Question {safeQuestionIndex + 1} of {totalQuestions}
             </Typography>
           </Box>
         </Toolbar>
@@ -331,12 +354,12 @@ const Exam: React.FC = () => {
                   Progress
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {Math.round(((currentQuestionIndex + 1) / totalQuestions) * 100)}%
+                  {Math.round(((safeQuestionIndex + 1) / totalQuestions) * 100)}%
                 </Typography>
               </Box>
               <LinearProgress 
                 variant="determinate" 
-                value={((currentQuestionIndex + 1) / totalQuestions) * 100}
+                value={((safeQuestionIndex + 1) / totalQuestions) * 100}
                 sx={{ height: 8, borderRadius: 4 }}
               />
             </Box>
@@ -344,7 +367,7 @@ const Exam: React.FC = () => {
             {/* Question */}
             <Box sx={{ mb: 4 }}>
               <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
-                {currentQuestion.question_text}
+                Question {safeQuestionIndex + 1}: {currentQuestion.question_text}
               </Typography>
 
               <FormControl component="fieldset" sx={{ width: '100%' }}>
@@ -386,7 +409,7 @@ const Exam: React.FC = () => {
                 variant="outlined"
                 startIcon={<ArrowBack />}
                 onClick={handlePreviousQuestion}
-                disabled={currentQuestionIndex === 0}
+                disabled={safeQuestionIndex === 0}
               >
                 Previous
               </Button>
