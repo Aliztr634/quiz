@@ -34,7 +34,13 @@ const InstructorDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0)
   const [courses, setCourses] = useState<Course[]>([])
   const [exams, setExams] = useState<Exam[]>([])
+  const [studentResults, setStudentResults] = useState<any[]>([])
+  const [filteredResults, setFilteredResults] = useState<any[]>([])
+  const [selectedExamFilter, setSelectedExamFilter] = useState('all')
   const [loading, setLoading] = useState(false)
+  const [selectedStudentResult, setSelectedStudentResult] = useState<any>(null)
+  const [studentAnswers, setStudentAnswers] = useState<any[]>([])
+  const [openStudentDetails, setOpenStudentDetails] = useState(false)
   const [openDialog, setOpenDialog] = useState(false)
   const [openQuestionsDialog, setOpenQuestionsDialog] = useState(false)
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null)
@@ -81,12 +87,38 @@ const InstructorDashboard: React.FC = () => {
         .eq('instructor_id', user?.id)
         .order('created_at', { ascending: false })
       setExams(examsData || [])
+
+      // Fetch student results for instructor's exams
+      const examIds = examsData?.map(exam => exam.id) || []
+      if (examIds.length > 0) {
+        const { data: resultsData } = await supabase
+          .from('exam_attempts')
+          .select(`
+            *,
+            users(name, username),
+            exams(title, courses(name))
+          `)
+          .in('exam_id', examIds)
+          .order('completed_at', { ascending: false })
+        setStudentResults(resultsData || [])
+        setFilteredResults(resultsData || [])
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
       setLoading(false)
     }
   }
+
+  // Filter results by exam
+  useEffect(() => {
+    if (selectedExamFilter === 'all') {
+      setFilteredResults(studentResults)
+    } else {
+      const filtered = studentResults.filter(result => result.exam_id === selectedExamFilter)
+      setFilteredResults(filtered)
+    }
+  }, [selectedExamFilter, studentResults])
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue)
@@ -243,6 +275,34 @@ const InstructorDashboard: React.FC = () => {
       question_order: 1
     })
     setError('')
+  }
+
+  const handleViewStudentDetails = async (result: any) => {
+    try {
+      setSelectedStudentResult(result)
+      
+      // Fetch detailed answers for this student's attempt
+      const { data: answersData } = await supabase
+        .from('answers')
+        .select(`
+          *,
+          questions(question_text, options, correct_answer, question_order)
+        `)
+        .eq('attempt_id', result.id)
+        .order('questions(question_order)')
+      
+      setStudentAnswers(answersData || [])
+      setOpenStudentDetails(true)
+    } catch (error) {
+      console.error('Error fetching student answers:', error)
+      setError('Failed to load student details')
+    }
+  }
+
+  const handleCloseStudentDetails = () => {
+    setOpenStudentDetails(false)
+    setSelectedStudentResult(null)
+    setStudentAnswers([])
   }
 
   const handleAddQuestion = async () => {
@@ -492,19 +552,136 @@ const InstructorDashboard: React.FC = () => {
 
         {activeTab === 2 && (
           <Box>
-            <Typography variant="h5" gutterBottom>
-              Student Results
-            </Typography>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary">
-                  Student results and analytics will be displayed here.
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  This feature will show exam attempts, scores, and performance analytics for each exam.
-                </Typography>
-              </CardContent>
-            </Card>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h5">
+                Student Results
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 200 }}>
+                <InputLabel>Filter by Exam</InputLabel>
+                <Select
+                  value={selectedExamFilter}
+                  label="Filter by Exam"
+                  onChange={(e) => setSelectedExamFilter(e.target.value)}
+                >
+                  <MenuItem value="all">All Exams</MenuItem>
+                  {exams.map((exam) => (
+                    <MenuItem key={exam.id} value={exam.id}>
+                      {exam.title}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+            
+            {/* Summary Statistics */}
+            {filteredResults.length > 0 && (
+              <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+                <Card sx={{ flex: 1 }}>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="primary">
+                      {filteredResults.length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Attempts
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card sx={{ flex: 1 }}>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="success.main">
+                      {Math.round(filteredResults.reduce((sum, result) => sum + (result.score || 0), 0) / filteredResults.length)}%
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Average Score
+                    </Typography>
+                  </CardContent>
+                </Card>
+                <Card sx={{ flex: 1 }}>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" color="warning.main">
+                      {filteredResults.filter(result => result.score >= 70).length}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Passed (≥70%)
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Box>
+            )}
+            
+            {filteredResults.length === 0 ? (
+              <Card>
+                <CardContent>
+                  <Typography color="text.secondary">
+                    No student results available yet.
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Results will appear here once students complete your exams.
+                  </Typography>
+                </CardContent>
+              </Card>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {filteredResults.map((result) => (
+                  <Card key={result.id} sx={{ border: '1px solid', borderColor: 'grey.300' }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                        <Box>
+                          <Typography variant="h6" gutterBottom>
+                            {result.users?.name || result.users?.username || 'Unknown Student'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Exam: {result.exams?.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Course: {result.exams?.courses?.name}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ textAlign: 'right' }}>
+                          <Chip
+                            label={`${Math.round(result.score || 0)}%`}
+                            color={result.score >= 70 ? 'success' : result.score >= 50 ? 'warning' : 'error'}
+                            sx={{ mb: 1 }}
+                          />
+                          <Typography variant="body2" color="text.secondary">
+                            {result.correct_answers || 0} / {result.total_questions || 0} correct
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Started: {new Date(result.started_at).toLocaleString()}
+                        </Typography>
+                        {result.completed_at && (
+                          <Typography variant="body2" color="text.secondary">
+                            Completed: {new Date(result.completed_at).toLocaleString()}
+                          </Typography>
+                        )}
+                      </Box>
+                      
+                      {result.completed_at && (
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Duration: {Math.round((new Date(result.completed_at).getTime() - new Date(result.started_at).getTime()) / 1000 / 60)} minutes
+                          </Typography>
+                        </Box>
+                      )}
+                      
+                      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleViewStudentDetails(result)}
+                        >
+                          View Detailed Answers
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            )}
           </Box>
         )}
       </Container>
@@ -674,7 +851,113 @@ const InstructorDashboard: React.FC = () => {
         <DialogActions>
           <Button onClick={handleCloseQuestionsDialog}>Close</Button>
         </DialogActions>
-      </Dialog>
+        </Dialog>
+
+        {/* Student Detailed Answers Dialog */}
+        <Dialog 
+          open={openStudentDetails} 
+          onClose={handleCloseStudentDetails} 
+          maxWidth="md" 
+          fullWidth
+        >
+          <DialogTitle>
+            Detailed Answers - {selectedStudentResult?.users?.name || selectedStudentResult?.users?.username}
+          </DialogTitle>
+          <DialogContent>
+            {selectedStudentResult && (
+              <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="h6" gutterBottom>
+                  {selectedStudentResult.exams?.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Course: {selectedStudentResult.exams?.courses?.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Score: {Math.round(selectedStudentResult.score || 0)}% ({selectedStudentResult.correct_answers || 0}/{selectedStudentResult.total_questions || 0} correct)
+                </Typography>
+              </Box>
+            )}
+            
+            {studentAnswers.length === 0 ? (
+              <Typography color="text.secondary">
+                No detailed answers available.
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {studentAnswers.map((answer, index) => (
+                  <Card key={answer.id} sx={{ 
+                    border: '1px solid', 
+                    borderColor: answer.is_correct ? 'success.main' : 'error.main',
+                    bgcolor: answer.is_correct ? 'success.50' : 'error.50'
+                  }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                        <Typography variant="h6" sx={{ flex: 1 }}>
+                          Question {index + 1}: {answer.questions?.question_text}
+                        </Typography>
+                        <Chip
+                          label={answer.is_correct ? 'Correct' : 'Incorrect'}
+                          color={answer.is_correct ? 'success' : 'error'}
+                          size="small"
+                        />
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                        {answer.questions?.options?.map((option: string, optionIndex: number) => (
+                          <Box
+                            key={optionIndex}
+                            sx={{
+                              p: 1.5,
+                              border: '1px solid',
+                              borderColor: 
+                                optionIndex === answer.selected_option && optionIndex === answer.questions?.correct_answer
+                                  ? 'success.main'
+                                  : optionIndex === answer.selected_option
+                                  ? 'error.main'
+                                  : optionIndex === answer.questions?.correct_answer
+                                  ? 'success.light'
+                                  : 'grey.300',
+                              borderRadius: 1,
+                              bgcolor:
+                                optionIndex === answer.selected_option && optionIndex === answer.questions?.correct_answer
+                                  ? 'success.100'
+                                  : optionIndex === answer.selected_option
+                                  ? 'error.100'
+                                  : optionIndex === answer.questions?.correct_answer
+                                  ? 'success.50'
+                                  : 'transparent'
+                            }}
+                          >
+                            <Typography 
+                              variant="body2"
+                              sx={{
+                                fontWeight: 
+                                  optionIndex === answer.selected_option || optionIndex === answer.questions?.correct_answer
+                                    ? 'bold'
+                                    : 'normal'
+                              }}
+                            >
+                              {String.fromCharCode(65 + optionIndex)}. {option}
+                              {optionIndex === answer.questions?.correct_answer && (
+                                <Chip label="Correct Answer" size="small" color="success" sx={{ ml: 1 }} />
+                              )}
+                              {optionIndex === answer.selected_option && optionIndex !== answer.questions?.correct_answer && (
+                                <Chip label="Student's Answer" size="small" color="error" sx={{ ml: 1 }} />
+                              )}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseStudentDetails}>Close</Button>
+          </DialogActions>
+        </Dialog>
     </Box>
   )
 }

@@ -15,7 +15,8 @@ import {
   FormControlLabel,
   FormControl,
   CircularProgress,
-  IconButton
+  IconButton,
+  Alert
 } from '@mui/material'
 import { AccessTime, ArrowBack, ArrowForward, CheckCircle } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
@@ -38,6 +39,7 @@ const Exam: React.FC = () => {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [timerExpired, setTimerExpired] = useState(false)
 
   // Ensure currentQuestionIndex is within bounds
   const safeQuestionIndex = Math.max(0, Math.min(currentQuestionIndex, questions.length - 1))
@@ -103,8 +105,10 @@ const Exam: React.FC = () => {
         return
       }
 
-      // Reset to first question
+      // Reset to first question and clear any previous state
       setCurrentQuestionIndex(0)
+      setTimerExpired(false)
+      setError('')
       console.log('Reset to first question, index:', 0)
 
       // Load existing answers
@@ -153,12 +157,17 @@ const Exam: React.FC = () => {
   // Auto-advance when timer reaches 0
   useEffect(() => {
     if (timeLeft === 0 && !isSubmitted && currentQuestion) {
+      setTimerExpired(true)
+      console.log('Timer expired for question:', currentQuestion.question_text)
       handleNextQuestion()
     }
   }, [timeLeft, isSubmitted, currentQuestion])
 
   const handleAnswerSelect = (optionIndex: number) => {
-    if (!currentQuestion || isSubmitted) return
+    if (!currentQuestion || isSubmitted || timerExpired) return
+
+    // Clear any previous error messages
+    setError('')
 
     const newAnswers = new Map(answers)
     newAnswers.set(currentQuestion.id, optionIndex)
@@ -199,6 +208,7 @@ const Exam: React.FC = () => {
       const nextIndex = safeQuestionIndex + 1
       setCurrentQuestionIndex(nextIndex)
       setTimeLeft(questions[nextIndex]?.timer_seconds || 0)
+      setTimerExpired(false) // Reset timer expiration for new question
       console.log('Moving to next question:', nextIndex)
     }
   }
@@ -208,12 +218,20 @@ const Exam: React.FC = () => {
       const prevIndex = safeQuestionIndex - 1
       setCurrentQuestionIndex(prevIndex)
       setTimeLeft(questions[prevIndex]?.timer_seconds || 0)
+      setTimerExpired(false) // Reset timer expiration for previous question
       console.log('Moving to previous question:', prevIndex)
     }
   }
 
   const handleSubmitExam = async () => {
     if (!attemptId || isSubmitted) return
+
+    // Check if all questions are answered
+    const unansweredQuestions = questions.filter(q => !answers.has(q.id))
+    if (unansweredQuestions.length > 0) {
+      setError(`Please answer all questions before submitting. ${unansweredQuestions.length} question(s) remaining.`)
+      return
+    }
 
     try {
       setIsSubmitted(true)
@@ -370,6 +388,12 @@ const Exam: React.FC = () => {
                 Question {safeQuestionIndex + 1}: {currentQuestion.question_text}
               </Typography>
 
+              {timerExpired && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Time's up! You can no longer answer this question. Click Next to continue.
+                </Alert>
+              )}
+
               <FormControl component="fieldset" sx={{ width: '100%' }}>
                 <RadioGroup
                   value={answers.get(currentQuestion.id) ?? ''}
@@ -379,9 +403,15 @@ const Exam: React.FC = () => {
                     <FormControlLabel
                       key={index}
                       value={index}
-                      control={<Radio />}
+                      control={<Radio disabled={timerExpired} />}
                       label={
-                        <Typography variant="body1" sx={{ ml: 1 }}>
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            ml: 1,
+                            color: timerExpired ? 'text.disabled' : 'text.primary'
+                          }}
+                        >
                           {option}
                         </Typography>
                       }
@@ -392,7 +422,8 @@ const Exam: React.FC = () => {
                         borderColor: answers.get(currentQuestion.id) === index ? 'primary.main' : 'grey.300',
                         borderRadius: 2,
                         bgcolor: answers.get(currentQuestion.id) === index ? 'primary.50' : 'transparent',
-                        '&:hover': {
+                        opacity: timerExpired ? 0.6 : 1,
+                        '&:hover': timerExpired ? {} : {
                           borderColor: 'primary.main',
                           bgcolor: 'primary.50'
                         }
@@ -422,6 +453,25 @@ const Exam: React.FC = () => {
               >
                 {isLastQuestion ? 'Submit Exam' : 'Next'}
               </Button>
+            </Box>
+
+            {/* Answer Validation Message */}
+            {error && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            {/* Answer Progress */}
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Answer Progress: {answers.size} / {totalQuestions} questions answered
+              </Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={(answers.size / totalQuestions) * 100}
+                sx={{ height: 6, borderRadius: 3 }}
+              />
             </Box>
           </CardContent>
         </Card>
