@@ -1,10 +1,11 @@
-name: Deploy to Vercel
+name: Deploy to Vercel (DISABLED - Use Vercel Dashboard instead)
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # Disabled - using Vercel dashboard for deployment
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
 
 jobs:
   deploy:
