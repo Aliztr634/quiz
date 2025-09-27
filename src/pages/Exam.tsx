@@ -47,15 +47,17 @@ const Exam: React.FC = () => {
   const totalQuestions = questions.length
   const isLastQuestion = safeQuestionIndex === totalQuestions - 1
 
-  // Debug logging
-  console.log('Exam Debug:', {
-    totalQuestions,
-    currentQuestionIndex,
-    safeQuestionIndex,
-    currentQuestion: currentQuestion?.question_text,
-    isLastQuestion,
-    answers: Array.from(answers.entries())
-  })
+  // Debug logging (reduced frequency)
+  if (currentQuestionIndex !== 0 || questions.length === 0) {
+    console.log('Exam Debug:', {
+      totalQuestions,
+      currentQuestionIndex,
+      safeQuestionIndex,
+      currentQuestion: currentQuestion?.question_text,
+      isLastQuestion,
+      answers: Array.from(answers.entries())
+    })
+  }
 
   const loadExam = useCallback(async () => {
     if (!examId || !attemptId) {
@@ -104,11 +106,19 @@ const Exam: React.FC = () => {
       }
 
       console.log('Questions loaded:', questionsData)
+      console.log('Number of questions:', questionsData?.length || 0)
       setQuestions(questionsData || [])
 
       if (!questionsData || questionsData.length === 0) {
         setError('This exam has no questions yet')
         return
+      }
+
+      // Check if exam has only 1 question
+      if (questionsData.length === 1) {
+        console.log('⚠️ WARNING: This exam has only 1 question! Next button will submit exam.')
+      } else {
+        console.log('✅ Exam has', questionsData.length, 'questions. Navigation should work.')
       }
 
       // Load existing answers
@@ -146,14 +156,8 @@ const Exam: React.FC = () => {
   }, [loadExam])
 
   // Additional safeguard: ensure we're always at question 0 when questions load
-  useEffect(() => {
-    if (questions.length > 0 && currentQuestionIndex !== 0) {
-      console.log('Questions loaded but not at index 0, forcing reset to 0')
-      setCurrentQuestionIndex(0)
-      setTimeLeft(questions[0].timer_seconds)
-      setTimerExpired(false)
-    }
-  }, [questions, currentQuestionIndex])
+  // REMOVED: This was causing the navigation to reset back to question 0
+  // The loadExam function already handles resetting to question 0 when needed
 
   // Timer effect
   useEffect(() => {
@@ -170,10 +174,24 @@ const Exam: React.FC = () => {
   useEffect(() => {
     if (timeLeft === 0 && !isSubmitted && currentQuestion) {
       setTimerExpired(true)
-      console.log('Timer expired for question:', currentQuestion.question_text)
-      handleNextQuestion()
+      console.log('Timer expired for question:', currentQuestion.question_text, 'auto-advancing...')
+      // Use a small delay to prevent conflicts with manual navigation
+      setTimeout(() => {
+        if (isLastQuestion) {
+          console.log('Timer expired - submitting exam...')
+          handleSubmitExam()
+        } else {
+          const nextIndex = safeQuestionIndex + 1
+          console.log('Timer expired - moving to next question:', nextIndex)
+          if (nextIndex < questions.length) {
+            setCurrentQuestionIndex(nextIndex)
+            setTimeLeft(questions[nextIndex]?.timer_seconds || 0)
+            setTimerExpired(false)
+          }
+        }
+      }, 100)
     }
-  }, [timeLeft, isSubmitted, currentQuestion])
+  }, [timeLeft, isSubmitted, currentQuestion, isLastQuestion, safeQuestionIndex, questions.length])
 
   const handleAnswerSelect = (optionIndex: number) => {
     if (!currentQuestion || isSubmitted || timerExpired) return
@@ -214,14 +232,33 @@ const Exam: React.FC = () => {
   }
 
   const handleNextQuestion = () => {
+    console.log('Next button clicked!', {
+      currentIndex: currentQuestionIndex,
+      safeIndex: safeQuestionIndex,
+      isLastQuestion,
+      totalQuestions,
+      questionsLength: questions.length,
+      isSubmitted,
+      timerExpired
+    })
+    
     if (isLastQuestion) {
+      console.log('This is the last question, submitting exam...')
       handleSubmitExam()
     } else {
       const nextIndex = safeQuestionIndex + 1
+      console.log('Moving to next question:', nextIndex, 'from', safeQuestionIndex)
+      
+      // Validate next index is within bounds
+      if (nextIndex >= questions.length) {
+        console.error('Next index out of bounds:', nextIndex, 'questions length:', questions.length)
+        return
+      }
+      
       setCurrentQuestionIndex(nextIndex)
       setTimeLeft(questions[nextIndex]?.timer_seconds || 0)
       setTimerExpired(false) // Reset timer expiration for new question
-      console.log('Moving to next question:', nextIndex)
+      console.log('Successfully moved to question:', nextIndex)
     }
   }
 
@@ -400,14 +437,12 @@ const Exam: React.FC = () => {
                 Question {safeQuestionIndex + 1}: {currentQuestion.question_text}
               </Typography>
               
-              {/* Debug info to confirm we're starting at question 1 */}
-              {safeQuestionIndex === 0 && (
-                <Box sx={{ mb: 2, p: 1, bgcolor: 'success.50', borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
-                  <Typography variant="body2" color="success.dark" sx={{ fontWeight: 500 }}>
-                    ✓ Starting with Question 1 (Index 0)
-                  </Typography>
-                </Box>
-              )}
+              {/* Question progress indicator */}
+              <Box sx={{ mb: 2, p: 1, bgcolor: 'success.50', borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
+                <Typography variant="body2" color="success.dark" sx={{ fontWeight: 500 }}>
+                  ✓ Question {safeQuestionIndex + 1} of {totalQuestions} | Time: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                </Typography>
+              </Box>
 
               {timerExpired && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
@@ -469,12 +504,21 @@ const Exam: React.FC = () => {
               <Button
                 variant="contained"
                 endIcon={isLastQuestion ? <CheckCircle /> : <ArrowForward />}
-                onClick={handleNextQuestion}
+                onClick={() => {
+                  console.log('Next button onClick triggered')
+                  handleNextQuestion()
+                }}
                 disabled={isSubmitted}
+                sx={{
+                  '&:disabled': {
+                    opacity: 0.6
+                  }
+                }}
               >
                 {isLastQuestion ? 'Submit Exam' : 'Next'}
               </Button>
             </Box>
+
 
             {/* Answer Validation Message */}
             {error && (
