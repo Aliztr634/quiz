@@ -40,12 +40,15 @@ const Exam: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [timerExpired, setTimerExpired] = useState(false)
+  const [lastSavedAnswer, setLastSavedAnswer] = useState<string | null>(null)
 
   // Ensure currentQuestionIndex is within bounds
   const safeQuestionIndex = Math.max(0, Math.min(currentQuestionIndex, questions.length - 1))
   const currentQuestion = questions[safeQuestionIndex]
   const totalQuestions = questions.length
   const isLastQuestion = safeQuestionIndex === totalQuestions - 1
+
+  // Removed final safeguard as it was preventing navigation
 
   // Debug logging (reduced frequency)
   if (currentQuestionIndex !== 0 || questions.length === 0) {
@@ -132,11 +135,25 @@ const Exam: React.FC = () => {
         answersMap.set(answer.question_id, answer.selected_option)
       })
       setAnswers(answersMap)
+      
+      console.log('Loaded existing answers:', answersData?.length || 0, 'answers')
+      if (answersData && answersData.length > 0) {
+        console.log('Answer details:', answersData.map(a => ({
+          questionId: a.question_id,
+          selectedOption: a.selected_option,
+          isCorrect: a.is_correct
+        })))
+      }
 
       // Set timer for first question (index 0)
       if (questionsData && questionsData.length > 0) {
         setTimeLeft(questionsData[0].timer_seconds)
         console.log('Set timer for first question (index 0):', questionsData[0].timer_seconds)
+        
+        // FORCE reset to question 0 after questions are loaded
+        console.log('🔧 FORCING reset to question 0 after questions loaded')
+        setCurrentQuestionIndex(0)
+        setTimerExpired(false)
       }
 
     } catch (err) {
@@ -153,7 +170,7 @@ const Exam: React.FC = () => {
     setTimerExpired(false)
     console.log('Component mounted - forcing reset to question 0')
     loadExam()
-  }, [loadExam])
+  }, []) // Empty dependency array - only run once on mount
 
   // Additional safeguard: ensure we're always at question 0 when questions load
   // REMOVED: This was causing the navigation to reset back to question 0
@@ -193,6 +210,11 @@ const Exam: React.FC = () => {
     }
   }, [timeLeft, isSubmitted, currentQuestion, isLastQuestion, safeQuestionIndex, questions.length])
 
+  // Debug effect to track question index changes
+  useEffect(() => {
+    console.log('🔍 Question index changed to:', currentQuestionIndex, 'Question:', currentQuestion?.question_text)
+  }, [currentQuestionIndex, currentQuestion])
+
   const handleAnswerSelect = (optionIndex: number) => {
     if (!currentQuestion || isSubmitted || timerExpired) return
 
@@ -202,6 +224,18 @@ const Exam: React.FC = () => {
     const newAnswers = new Map(answers)
     newAnswers.set(currentQuestion.id, optionIndex)
     setAnswers(newAnswers)
+
+    const previousAnswer = answers.get(currentQuestion.id)
+    const isAnswerChanged = previousAnswer !== undefined && previousAnswer !== optionIndex
+    
+    console.log('Answer selected:', {
+      questionId: currentQuestion.id,
+      questionText: currentQuestion.question_text,
+      selectedOption: optionIndex,
+      optionText: currentQuestion.options[optionIndex],
+      previousAnswer,
+      isAnswerChanged: isAnswerChanged ? 'YES - Answer changed!' : 'NO - First answer'
+    })
 
     // Save answer to database
     saveAnswer(currentQuestion.id, optionIndex)
@@ -213,6 +247,18 @@ const Exam: React.FC = () => {
     try {
       const isCorrect = selectedOption === currentQuestion?.correct_answer
       
+      const previousAnswer = answers.get(questionId)
+      const isAnswerChanged = previousAnswer !== undefined && previousAnswer !== selectedOption
+      
+      console.log('Saving answer:', {
+        attemptId,
+        questionId,
+        selectedOption,
+        isCorrect,
+        previousAnswer,
+        isAnswerChanged: isAnswerChanged ? 'YES - Updating existing answer!' : 'NO - New answer'
+      })
+      
       const { error } = await supabase
         .from('answers')
         .upsert({
@@ -221,10 +267,18 @@ const Exam: React.FC = () => {
           selected_option: selectedOption,
           is_correct: isCorrect,
           answered_at: new Date().toISOString()
+        }, {
+          onConflict: 'attempt_id,question_id'
         })
 
       if (error) {
         console.error('Error saving answer:', error)
+      } else {
+        const successMessage = isAnswerChanged ? '✅ Answer updated successfully!' : '✅ Answer saved successfully!'
+        console.log(successMessage)
+        setLastSavedAnswer(questionId)
+        // Clear the indicator after 2 seconds
+        setTimeout(() => setLastSavedAnswer(null), 2000)
       }
     } catch (err) {
       console.error('Error saving answer:', err)
@@ -258,7 +312,8 @@ const Exam: React.FC = () => {
       setCurrentQuestionIndex(nextIndex)
       setTimeLeft(questions[nextIndex]?.timer_seconds || 0)
       setTimerExpired(false) // Reset timer expiration for new question
-      console.log('Successfully moved to question:', nextIndex)
+      console.log('✅ Successfully moved to question:', nextIndex)
+      console.log('🔍 New question will be:', questions[nextIndex]?.question_text)
     }
   }
 
@@ -441,6 +496,16 @@ const Exam: React.FC = () => {
               <Box sx={{ mb: 2, p: 1, bgcolor: 'success.50', borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
                 <Typography variant="body2" color="success.dark" sx={{ fontWeight: 500 }}>
                   ✓ Question {safeQuestionIndex + 1} of {totalQuestions} | Time: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+                  {answers.has(currentQuestion.id) && (
+                    <span style={{ marginLeft: '8px', color: '#1976d2' }}>
+                      • Answer saved
+                    </span>
+                  )}
+                  {lastSavedAnswer === currentQuestion.id && (
+                    <span style={{ marginLeft: '8px', color: '#2e7d32', fontWeight: 'bold' }}>
+                      ✓ Answer updated!
+                    </span>
+                  )}
                 </Typography>
               </Box>
 
@@ -474,14 +539,17 @@ const Exam: React.FC = () => {
                       sx={{
                         p: 2,
                         mb: 1,
-                        border: '1px solid',
+                        border: '2px solid',
                         borderColor: answers.get(currentQuestion.id) === index ? 'primary.main' : 'grey.300',
                         borderRadius: 2,
                         bgcolor: answers.get(currentQuestion.id) === index ? 'primary.50' : 'transparent',
                         opacity: timerExpired ? 0.6 : 1,
+                        transform: answers.get(currentQuestion.id) === index ? 'scale(1.02)' : 'scale(1)',
+                        transition: 'all 0.2s ease-in-out',
                         '&:hover': timerExpired ? {} : {
                           borderColor: 'primary.main',
-                          bgcolor: 'primary.50'
+                          bgcolor: 'primary.50',
+                          transform: 'scale(1.02)'
                         }
                       }}
                     />
@@ -517,6 +585,38 @@ const Exam: React.FC = () => {
               >
                 {isLastQuestion ? 'Submit Exam' : 'Next'}
               </Button>
+            </Box>
+
+            {/* Question Navigation Dots */}
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
+              {questions.map((_, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    bgcolor: index === safeQuestionIndex 
+                      ? 'primary.main' 
+                      : answers.has(questions[index].id) 
+                        ? 'success.main' 
+                        : 'grey.300',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      transform: 'scale(1.2)'
+                    }
+                  }}
+                  onClick={() => {
+                    if (index !== safeQuestionIndex) {
+                      setCurrentQuestionIndex(index)
+                      setTimeLeft(questions[index]?.timer_seconds || 0)
+                      setTimerExpired(false)
+                    }
+                  }}
+                  title={`Question ${index + 1}${answers.has(questions[index].id) ? ' (answered)' : ''}`}
+                />
+              ))}
             </Box>
 
 
