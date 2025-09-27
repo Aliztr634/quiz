@@ -50,15 +50,14 @@ const Exam: React.FC = () => {
 
   // Removed final safeguard as it was preventing navigation
 
-  // Debug logging (reduced frequency)
-  if (currentQuestionIndex !== 0 || questions.length === 0) {
+  // Debug logging (only for navigation issues)
+  if (currentQuestionIndex > 0) {
     console.log('Exam Debug:', {
       totalQuestions,
       currentQuestionIndex,
       safeQuestionIndex,
       currentQuestion: currentQuestion?.question_text,
-      isLastQuestion,
-      answers: Array.from(answers.entries())
+      isLastQuestion
     })
   }
 
@@ -170,7 +169,7 @@ const Exam: React.FC = () => {
     setTimerExpired(false)
     console.log('Component mounted - forcing reset to question 0')
     loadExam()
-  }, []) // Empty dependency array - only run once on mount
+  }, [loadExam]) // Include loadExam in dependencies
 
   // Additional safeguard: ensure we're always at question 0 when questions load
   // REMOVED: This was causing the navigation to reset back to question 0

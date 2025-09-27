@@ -24,10 +24,12 @@ import {
   Alert,
   CardActions
 } from '@mui/material'
-import { Add, Logout, MenuBook, Quiz, Edit, Delete, QuestionAnswer } from '@mui/icons-material'
+import { Add, Logout, MenuBook, Quiz, Edit, Delete, QuestionAnswer, Functions } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import type { Course, Exam, Question } from '../types'
+import MathQuestionGeneratorComponent from '../components/MathQuestionGenerator'
+import type { MathQuestion } from '../utils/mathQuestionGenerator'
 
 const InstructorDashboard: React.FC = () => {
   const { user, signOut } = useAuth()
@@ -58,6 +60,8 @@ const InstructorDashboard: React.FC = () => {
     timer_seconds: 60,
     question_order: 1
   })
+  const [showMathGenerator, setShowMathGenerator] = useState(false)
+  const [selectedExamForMath, setSelectedExamForMath] = useState<Exam | null>(null)
 
   useEffect(() => {
     fetchData()
@@ -239,6 +243,7 @@ const InstructorDashboard: React.FC = () => {
   }
 
   const handleManageQuestions = async (exam: Exam) => {
+    console.log('🔧 Opening questions dialog for exam:', exam.title)
     setSelectedExam(exam)
     setError('')
     
@@ -257,6 +262,7 @@ const InstructorDashboard: React.FC = () => {
 
       setQuestions(questionsData || [])
       setOpenQuestionsDialog(true)
+      console.log('✅ Questions dialog opened successfully')
     } catch (err) {
       console.error('Error fetching questions:', err)
       setError('Failed to load questions')
@@ -347,6 +353,34 @@ const InstructorDashboard: React.FC = () => {
       setError('Failed to add question')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleMathQuestionsGenerated = async (mathQuestions: MathQuestion[]) => {
+    if (!selectedExamForMath) return
+
+    try {
+      const questionsToInsert = mathQuestions.map((q, index) => ({
+        exam_id: selectedExamForMath.id,
+        question_text: q.question_text,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        timer_seconds: q.timer_seconds,
+        question_order: (questions.length || 0) + index + 1
+      }))
+
+      const { error } = await supabase
+        .from('questions')
+        .insert(questionsToInsert)
+
+      if (error) throw error
+
+      setShowMathGenerator(false)
+      setSelectedExamForMath(null)
+      fetchData()
+    } catch (err) {
+      console.error('Error adding math questions:', err)
+      setError('Failed to add math questions')
     }
   }
 
@@ -749,6 +783,9 @@ const InstructorDashboard: React.FC = () => {
           {/* Add Question Form */}
           <Card sx={{ mb: 3, p: 2 }}>
             <Typography variant="h6" gutterBottom>Add New Question</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              DEBUG: You should see two buttons below - "Add Question" and "Generate Math Questions"
+            </Typography>
             <TextField
               fullWidth
               label="Question Text"
@@ -801,6 +838,23 @@ const InstructorDashboard: React.FC = () => {
                 startIcon={<Add />}
               >
                 {loading ? 'Adding...' : 'Add Question'}
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  console.log('Generate Math Questions button clicked!')
+                  setSelectedExamForMath(selectedExam)
+                  setShowMathGenerator(true)
+                }}
+                startIcon={<Functions />}
+                color="primary"
+                sx={{ 
+                  border: '2px solid #1976d2',
+                  fontWeight: 'bold',
+                  textTransform: 'none'
+                }}
+              >
+                🧮 Generate Math Questions
               </Button>
             </Box>
           </Card>
@@ -957,6 +1011,31 @@ const InstructorDashboard: React.FC = () => {
           <DialogActions>
             <Button onClick={handleCloseStudentDetails}>Close</Button>
           </DialogActions>
+        </Dialog>
+
+        {/* Math Question Generator Dialog */}
+        <Dialog
+          open={showMathGenerator}
+          onClose={() => setShowMathGenerator(false)}
+          maxWidth="xl"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h6">
+                Math Question Generator
+              </Typography>
+              <Button onClick={() => setShowMathGenerator(false)}>
+                Close
+              </Button>
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ p: 0 }}>
+            <MathQuestionGeneratorComponent
+              onQuestionsGenerated={handleMathQuestionsGenerated}
+              onClose={() => setShowMathGenerator(false)}
+            />
+          </DialogContent>
         </Dialog>
     </Box>
   )
