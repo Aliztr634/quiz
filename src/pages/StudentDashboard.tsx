@@ -60,8 +60,10 @@ const StudentDashboard: React.FC = () => {
   const fetchData = async () => {
     setLoading(true)
     try {
+      console.log('Fetching data for user:', user?.id)
+      
       // Fetch student's enrolled courses
-      const { data: enrollments } = await supabase
+      const { data: enrollments, error: enrollmentsError } = await supabase
         .from('enrollments')
         .select(`
           courses(
@@ -71,13 +73,19 @@ const StudentDashboard: React.FC = () => {
         `)
         .eq('student_id', user?.id)
 
+      console.log('Enrollments:', enrollments)
+      console.log('Enrollments Error:', enrollmentsError)
+
       const enrolledCourses = enrollments?.map(enrollment => enrollment.courses) || []
       setCourses(enrolledCourses as unknown as Course[])
+      console.log('Enrolled courses:', enrolledCourses)
 
       // Fetch available exams for enrolled courses
       const courseIds = enrolledCourses.map((course: any) => course.id)
+      console.log('Course IDs:', courseIds)
+      
       if (courseIds.length > 0) {
-        const { data: examsData } = await supabase
+        const { data: examsData, error: examsError } = await supabase
           .from('exams')
           .select(`
             *,
@@ -86,7 +94,23 @@ const StudentDashboard: React.FC = () => {
           .in('course_id', courseIds)
           .eq('is_active', true)
           .order('created_at', { ascending: false })
+        
+        console.log('Exams data:', examsData)
+        console.log('Exams error:', examsError)
         setExams(examsData || [])
+      } else {
+        console.log('No enrolled courses, fetching all exams for debugging...')
+        // For debugging - fetch all exams to see what's available
+        const { data: allExams, error: allExamsError } = await supabase
+          .from('exams')
+          .select(`
+            *,
+            courses(name, subjects(name))
+          `)
+          .eq('is_active', true)
+        
+        console.log('All active exams:', allExams)
+        console.log('All exams error:', allExamsError)
       }
 
       // Fetch student's exam attempts
