@@ -1,9 +1,10 @@
-name: Deploy to GitHub Pages
+name: Deploy to GitHub Pages (DISABLED - Use Vercel instead)
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+  # Disabled - using Vercel for deployment
+  # push:
+  #   branches: [ main ]
+  # workflow_dispatch:
 
 permissions:
   contents: read
@@ -38,6 +39,8 @@ jobs:
           
       - name: Setup Pages
         uses: actions/configure-pages@v4
+        with:
+          enablement: true
         
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
