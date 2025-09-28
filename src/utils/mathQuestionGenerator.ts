@@ -232,7 +232,9 @@ export class MathQuestionGenerator {
           .replace('{c}', c.toString());
         correctAnswer = a + b + c;
       } else {
-        question = this.getQuestionTemplate('arithmetic', grade, language).addition
+        // Use easy template for simple addition
+        const easyTemplate = this.getQuestionTemplate('arithmetic', 4, language).addition; // Force easy template
+        question = easyTemplate
           .replace('{a}', a.toString())
           .replace('{b}', b.toString());
         correctAnswer = a + b;
@@ -250,7 +252,9 @@ export class MathQuestionGenerator {
           .replace('{c}', c.toString());
         correctAnswer = a - b - c;
       } else {
-        question = this.getQuestionTemplate('arithmetic', grade, language).subtraction
+        // Use easy template for simple subtraction
+        const easyTemplate = this.getQuestionTemplate('arithmetic', 4, language).subtraction; // Force easy template
+        question = easyTemplate
           .replace('{a}', a.toString())
           .replace('{b}', b.toString());
         correctAnswer = a - b;
@@ -268,7 +272,9 @@ export class MathQuestionGenerator {
           .replace('{c}', c.toString());
         correctAnswer = a * b * c;
       } else {
-        question = this.getQuestionTemplate('arithmetic', grade, language).multiplication
+        // Use easy template for simple multiplication
+        const easyTemplate = this.getQuestionTemplate('arithmetic', 4, language).multiplication; // Force easy template
+        question = easyTemplate
           .replace('{a}', a.toString())
           .replace('{b}', b.toString());
         correctAnswer = a * b;
@@ -286,7 +292,9 @@ export class MathQuestionGenerator {
           .replace('{c}', c.toString());
         correctAnswer = a / b / c;
       } else {
-        question = this.getQuestionTemplate('arithmetic', grade, language).division
+        // Use easy template for simple division
+        const easyTemplate = this.getQuestionTemplate('arithmetic', 4, language).division; // Force easy template
+        question = easyTemplate
           .replace('{a}', a.toString())
           .replace('{b}', b.toString());
         correctAnswer = a / b;
