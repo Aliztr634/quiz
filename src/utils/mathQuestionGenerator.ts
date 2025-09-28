@@ -1,920 +1,728 @@
 export interface MathQuestion {
-  question_text: string
-  options: string[]
-  correct_answer: number
-  timer_seconds: number
-  difficulty: 'easy' | 'medium' | 'hard'
-  question_type: string
+  question_text: string;
+  options: string[];
+  correct_answer: number;
+  timer_seconds: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  question_type: string;
+  grade_level: number;
+  language: 'french' | 'english';
 }
 
 export class MathQuestionGenerator {
   private static randomInt(min: number, max: number): number {
-    return Math.floor(Math.random() * (max - min + 1)) + min
+    return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  // private static randomFloat(min: number, max: number, decimals: number = 2): number {
-  //   return parseFloat((Math.random() * (max - min) + min).toFixed(decimals))
-  // }
+  private static randomFloat(min: number, max: number, decimals: number = 2): number {
+    return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
+  }
 
-  // Generate basic arithmetic questions
-  static generateArithmetic(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    const types = ['addition', 'subtraction', 'multiplication', 'division']
-    const type = types[Math.floor(Math.random() * types.length)]
-    
-    switch (type) {
-      case 'addition':
-        return this.generateAddition(difficulty)
-      case 'subtraction':
-        return this.generateSubtraction(difficulty)
-      case 'multiplication':
-        return this.generateMultiplication(difficulty)
-      case 'division':
-        return this.generateDivision(difficulty)
-      default:
-        return this.generateAddition(difficulty)
+  // Grade-specific difficulty mapping for Lebanese curriculum
+  private static getDifficultyForGrade(grade: number): 'easy' | 'medium' | 'hard' {
+    if (grade <= 4) return 'easy';
+    if (grade <= 8) return 'medium';
+    return 'hard';
+  }
+
+  // Grade-specific number ranges for Lebanese curriculum
+  private static getNumberRange(grade: number): { min: number; max: number } {
+    if (grade <= 2) {
+      return { min: 1, max: 10 };
+    } else if (grade <= 4) {
+      return { min: 1, max: 20 };
+    } else if (grade <= 6) {
+      return { min: 1, max: 50 };
+    } else if (grade <= 8) {
+      return { min: 1, max: 100 };
+    } else {
+      return { min: 1, max: 1000 };
     }
   }
 
-  private static generateAddition(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, answer: number
-    let timer: number
+  // Language-specific question templates
+  private static getQuestionTemplate(category: string, grade: number, language: 'french' | 'english'): any {
+    const templates = {
+      arithmetic: {
+        easy: {
+          french: {
+            addition: "Quelle est la somme de {a} et {b} ?",
+            subtraction: "Quelle est la différence entre {a} et {b} ?",
+            multiplication: "Combien font {a} × {b} ?",
+            division: "Combien font {a} ÷ {b} ?"
+          },
+          english: {
+            addition: "What is the sum of {a} and {b}?",
+            subtraction: "What is the difference between {a} and {b}?",
+            multiplication: "What is {a} × {b}?",
+            division: "What is {a} ÷ {b}?"
+          }
+        },
+        medium: {
+          french: {
+            addition: "Calculez {a} + {b} + {c}",
+            subtraction: "Calculez {a} - {b} - {c}",
+            multiplication: "Calculez {a} × {b} × {c}",
+            division: "Calculez {a} ÷ {b} ÷ {c}"
+          },
+          english: {
+            addition: "Calculate {a} + {b} + {c}",
+            subtraction: "Calculate {a} - {b} - {c}",
+            multiplication: "Calculate {a} × {b} × {c}",
+            division: "Calculate {a} ÷ {b} ÷ {c}"
+          }
+        },
+        hard: {
+          french: {
+            addition: "Résolvez: {a} + {b} × {c}",
+            subtraction: "Résolvez: {a} - {b} × {c}",
+            multiplication: "Résolvez: ({a} + {b}) × {c}",
+            division: "Résolvez: ({a} + {b}) ÷ {c}"
+          },
+          english: {
+            addition: "Solve: {a} + {b} × {c}",
+            subtraction: "Solve: {a} - {b} × {c}",
+            multiplication: "Solve: ({a} + {b}) × {c}",
+            division: "Solve: ({a} + {b}) ÷ {c}"
+          }
+        }
+      },
+      fractions: {
+        easy: {
+          french: {
+            addition: "Quelle est la somme de {a}/{b} et {c}/{d} ?",
+            subtraction: "Quelle est la différence entre {a}/{b} et {c}/{d} ?",
+            multiplication: "Combien font {a}/{b} × {c}/{d} ?",
+            division: "Combien font {a}/{b} ÷ {c}/{d} ?"
+          },
+          english: {
+            addition: "What is the sum of {a}/{b} and {c}/{d}?",
+            subtraction: "What is the difference between {a}/{b} and {c}/{d}?",
+            multiplication: "What is {a}/{b} × {c}/{d}?",
+            division: "What is {a}/{b} ÷ {c}/{d}?"
+          }
+        },
+        medium: {
+          french: {
+            addition: "Calculez {a}/{b} + {c}/{d}",
+            subtraction: "Calculez {a}/{b} - {c}/{d}",
+            multiplication: "Calculez {a}/{b} × {c}/{d}",
+            division: "Calculez {a}/{b} ÷ {c}/{d}"
+          },
+          english: {
+            addition: "Calculate {a}/{b} + {c}/{d}",
+            subtraction: "Calculate {a}/{b} - {c}/{d}",
+            multiplication: "Calculate {a}/{b} × {c}/{d}",
+            division: "Calculate {a}/{b} ÷ {c}/{d}"
+          }
+        },
+        hard: {
+          french: {
+            addition: "Résolvez: {a}/{b} + {c}/{d} + {e}/{f}",
+            subtraction: "Résolvez: {a}/{b} - {c}/{d} - {e}/{f}",
+            multiplication: "Résolvez: ({a}/{b} + {c}/{d}) × {e}/{f}",
+            division: "Résolvez: ({a}/{b} + {c}/{d}) ÷ {e}/{f}"
+          },
+          english: {
+            addition: "Solve: {a}/{b} + {c}/{d} + {e}/{f}",
+            subtraction: "Solve: {a}/{b} - {c}/{d} - {e}/{f}",
+            multiplication: "Solve: ({a}/{b} + {c}/{d}) × {e}/{f}",
+            division: "Solve: ({a}/{b} + {c}/{d}) ÷ {e}/{f}"
+          }
+        }
+      },
+      algebra: {
+        easy: {
+          french: {
+            linear: "Résolvez: {a}x + {b} = {c}",
+            quadratic: "Résolvez: x² + {a}x + {b} = 0",
+            system: "Résolvez le système: {a}x + {b}y = {c}, {d}x + {e}y = {f}"
+          },
+          english: {
+            linear: "Solve: {a}x + {b} = {c}",
+            quadratic: "Solve: x² + {a}x + {b} = 0",
+            system: "Solve the system: {a}x + {b}y = {c}, {d}x + {e}y = {f}"
+          }
+        },
+        medium: {
+          french: {
+            linear: "Résolvez: {a}x + {b} = {c}x + {d}",
+            quadratic: "Résolvez: {a}x² + {b}x + {c} = 0",
+            system: "Résolvez le système: {a}x + {b}y = {c}, {d}x + {e}y = {f}"
+          },
+          english: {
+            linear: "Solve: {a}x + {b} = {c}x + {d}",
+            quadratic: "Solve: {a}x² + {b}x + {c} = 0",
+            system: "Solve the system: {a}x + {b}y = {c}, {d}x + {e}y = {f}"
+          }
+        },
+        hard: {
+          french: {
+            linear: "Résolvez: {a}x + {b} = {c}x + {d}",
+            quadratic: "Résolvez: {a}x² + {b}x + {c} = 0",
+            system: "Résolvez le système: {a}x + {b}y = {c}, {d}x + {e}y = {f}"
+          },
+          english: {
+            linear: "Solve: {a}x + {b} = {c}x + {d}",
+            quadratic: "Solve: {a}x² + {b}x + {c} = 0",
+            system: "Solve the system: {a}x + {b}y = {c}, {d}x + {e}y = {f}"
+          }
+        }
+      },
+      geometry: {
+        easy: {
+          french: {
+            area: "Quelle est l'aire d'un rectangle de longueur {a} et de largeur {b} ?",
+            perimeter: "Quel est le périmètre d'un rectangle de longueur {a} et de largeur {b} ?",
+            volume: "Quel est le volume d'un cube de côté {a} ?"
+          },
+          english: {
+            area: "What is the area of a rectangle with length {a} and width {b}?",
+            perimeter: "What is the perimeter of a rectangle with length {a} and width {b}?",
+            volume: "What is the volume of a cube with side {a}?"
+          }
+        },
+        medium: {
+          french: {
+            area: "Calculez l'aire d'un triangle de base {a} et de hauteur {b}",
+            perimeter: "Calculez le périmètre d'un cercle de rayon {a}",
+            volume: "Calculez le volume d'un cylindre de rayon {a} et de hauteur {b}"
+          },
+          english: {
+            area: "Calculate the area of a triangle with base {a} and height {b}",
+            perimeter: "Calculate the perimeter of a circle with radius {a}",
+            volume: "Calculate the volume of a cylinder with radius {a} and height {b}"
+          }
+        },
+        hard: {
+          french: {
+            area: "Calculez l'aire d'un trapèze de bases {a} et {b} et de hauteur {c}",
+            perimeter: "Calculez le périmètre d'un polygone régulier de {a} côtés de longueur {b}",
+            volume: "Calculez le volume d'une sphère de rayon {a}"
+          },
+          english: {
+            area: "Calculate the area of a trapezoid with bases {a} and {b} and height {c}",
+            perimeter: "Calculate the perimeter of a regular polygon with {a} sides of length {b}",
+            volume: "Calculate the volume of a sphere with radius {a}"
+          }
+        }
+      }
+    };
 
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(1, 20)
-        b = this.randomInt(1, 20)
-        answer = a + b
-        timer = 30
-        break
-      case 'medium':
-        a = this.randomInt(10, 100)
-        b = this.randomInt(10, 100)
-        answer = a + b
-        timer = 45
-        break
-      case 'hard':
-        a = this.randomInt(100, 999)
-        b = this.randomInt(100, 999)
-        answer = a + b
-        timer = 60
-        break
+    return (templates as any)[category][this.getDifficultyForGrade(grade)][language];
+  }
+
+  // Generate arithmetic questions based on grade and language
+  static generateArithmetic(grade: number, language: 'french' | 'english'): MathQuestion {
+    const operations = ['addition', 'subtraction', 'multiplication', 'division'];
+    const operation = operations[this.randomInt(0, operations.length - 1)];
+    const range = this.getNumberRange(grade);
+    
+    let a, b, c, question, correctAnswer, timer;
+    
+    if (operation === 'addition') {
+      a = this.randomInt(range.min, range.max);
+      b = this.randomInt(range.min, range.max);
+      c = grade > 4 ? this.randomInt(range.min, range.max) : 0;
+      
+      if (c > 0) {
+        question = this.getQuestionTemplate('arithmetic', grade, language).addition
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString());
+        correctAnswer = a + b + c;
+      } else {
+        question = this.getQuestionTemplate('arithmetic', grade, language).addition
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString());
+        correctAnswer = a + b;
+      }
+      timer = grade <= 4 ? 30 : grade <= 8 ? 45 : 60;
+    } else if (operation === 'subtraction') {
+      a = this.randomInt(range.min, range.max);
+      b = this.randomInt(range.min, a);
+      c = grade > 4 ? this.randomInt(range.min, range.max) : 0;
+      
+      if (c > 0) {
+        question = this.getQuestionTemplate('arithmetic', grade, language).subtraction
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString());
+        correctAnswer = a - b - c;
+      } else {
+        question = this.getQuestionTemplate('arithmetic', grade, language).subtraction
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString());
+        correctAnswer = a - b;
+      }
+      timer = grade <= 4 ? 30 : grade <= 8 ? 45 : 60;
+    } else if (operation === 'multiplication') {
+      a = this.randomInt(range.min, Math.min(range.max, 12));
+      b = this.randomInt(range.min, Math.min(range.max, 12));
+      c = grade > 6 ? this.randomInt(range.min, Math.min(range.max, 12)) : 0;
+      
+      if (c > 0) {
+        question = this.getQuestionTemplate('arithmetic', grade, language).multiplication
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString());
+        correctAnswer = a * b * c;
+      } else {
+        question = this.getQuestionTemplate('arithmetic', grade, language).multiplication
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString());
+        correctAnswer = a * b;
+      }
+      timer = grade <= 4 ? 30 : grade <= 8 ? 45 : 60;
+    } else { // division
+      b = this.randomInt(2, Math.min(range.max, 12));
+      a = b * this.randomInt(range.min, Math.min(range.max, 12));
+      c = grade > 6 ? this.randomInt(2, Math.min(range.max, 12)) : 0;
+      
+      if (c > 0) {
+        question = this.getQuestionTemplate('arithmetic', grade, language).division
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString());
+        correctAnswer = a / b / c;
+      } else {
+        question = this.getQuestionTemplate('arithmetic', grade, language).division
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString());
+        correctAnswer = a / b;
+      }
+      timer = grade <= 4 ? 30 : grade <= 8 ? 45 : 60;
     }
 
-    const question = `What is ${a} + ${b}?`
-    const options = this.generateOptions(answer, difficulty)
-    
+    const options = this.generateOptions(correctAnswer, operation);
+    const correctIndex = options.indexOf(correctAnswer.toString());
+
     return {
       question_text: question,
       options,
-      correct_answer: options.indexOf(answer.toString()),
+      correct_answer: correctIndex,
       timer_seconds: timer,
-      difficulty,
-      question_type: 'addition'
-    }
+      difficulty: this.getDifficultyForGrade(grade),
+      question_type: operation,
+      grade_level: grade,
+      language
+    };
   }
 
-  private static generateSubtraction(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(10, 30)
-        b = this.randomInt(1, a)
-        answer = a - b
-        timer = 30
-        break
-      case 'medium':
-        a = this.randomInt(50, 200)
-        b = this.randomInt(10, a)
-        answer = a - b
-        timer = 45
-        break
-      case 'hard':
-        a = this.randomInt(500, 1000)
-        b = this.randomInt(100, a)
-        answer = a - b
-        timer = 60
-        break
+  // Generate fraction questions based on grade and language
+  static generateFractions(grade: number, language: 'french' | 'english'): MathQuestion {
+    const operations = ['addition', 'subtraction', 'multiplication', 'division'];
+    const operation = operations[this.randomInt(0, operations.length - 1)];
+    
+    let a, b, c, d, e, f, question, correctAnswer, timer;
+    
+    if (operation === 'addition') {
+      a = this.randomInt(1, 10);
+      b = this.randomInt(2, 10);
+      c = this.randomInt(1, 10);
+      d = this.randomInt(2, 10);
+      e = grade > 6 ? this.randomInt(1, 10) : 0;
+      f = grade > 6 ? this.randomInt(2, 10) : 0;
+      
+      if (e > 0 && f > 0) {
+        question = this.getQuestionTemplate('fractions', grade, language).addition
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString())
+          .replace('{e}', e.toString())
+          .replace('{f}', f.toString());
+        correctAnswer = (a/b) + (c/d) + (e/f);
+      } else {
+        question = this.getQuestionTemplate('fractions', grade, language).addition
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString());
+        correctAnswer = (a/b) + (c/d);
+      }
+      timer = grade <= 4 ? 45 : grade <= 8 ? 60 : 90;
+    } else if (operation === 'subtraction') {
+      a = this.randomInt(1, 10);
+      b = this.randomInt(2, 10);
+      c = this.randomInt(1, 10);
+      d = this.randomInt(2, 10);
+      e = grade > 6 ? this.randomInt(1, 10) : 0;
+      f = grade > 6 ? this.randomInt(2, 10) : 0;
+      
+      if (e > 0 && f > 0) {
+        question = this.getQuestionTemplate('fractions', grade, language).subtraction
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString())
+          .replace('{e}', e.toString())
+          .replace('{f}', f.toString());
+        correctAnswer = (a/b) - (c/d) - (e/f);
+      } else {
+        question = this.getQuestionTemplate('fractions', grade, language).subtraction
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString());
+        correctAnswer = (a/b) - (c/d);
+      }
+      timer = grade <= 4 ? 45 : grade <= 8 ? 60 : 90;
+    } else if (operation === 'multiplication') {
+      a = this.randomInt(1, 10);
+      b = this.randomInt(2, 10);
+      c = this.randomInt(1, 10);
+      d = this.randomInt(2, 10);
+      e = grade > 6 ? this.randomInt(1, 10) : 0;
+      f = grade > 6 ? this.randomInt(2, 10) : 0;
+      
+      if (e > 0 && f > 0) {
+        question = this.getQuestionTemplate('fractions', grade, language).multiplication
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString())
+          .replace('{e}', e.toString())
+          .replace('{f}', f.toString());
+        correctAnswer = (a/b) * (c/d) * (e/f);
+      } else {
+        question = this.getQuestionTemplate('fractions', grade, language).multiplication
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString());
+        correctAnswer = (a/b) * (c/d);
+      }
+      timer = grade <= 4 ? 45 : grade <= 8 ? 60 : 90;
+    } else { // division
+      a = this.randomInt(1, 10);
+      b = this.randomInt(2, 10);
+      c = this.randomInt(1, 10);
+      d = this.randomInt(2, 10);
+      e = grade > 6 ? this.randomInt(1, 10) : 0;
+      f = grade > 6 ? this.randomInt(2, 10) : 0;
+      
+      if (e > 0 && f > 0) {
+        question = this.getQuestionTemplate('fractions', grade, language).division
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString())
+          .replace('{e}', e.toString())
+          .replace('{f}', f.toString());
+        correctAnswer = (a/b) / (c/d) / (e/f);
+      } else {
+        question = this.getQuestionTemplate('fractions', grade, language).division
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString());
+        correctAnswer = (a/b) / (c/d);
+      }
+      timer = grade <= 4 ? 45 : grade <= 8 ? 60 : 90;
     }
 
-    const question = `What is ${a} - ${b}?`
-    const options = this.generateOptions(answer, difficulty)
-    
+    const options = this.generateFractionOptions(correctAnswer);
+    const correctIndex = options.findIndex(opt => Math.abs(parseFloat(opt) - correctAnswer) < 0.001);
+
     return {
       question_text: question,
       options,
-      correct_answer: options.indexOf(answer.toString()),
+      correct_answer: correctIndex,
       timer_seconds: timer,
-      difficulty,
-      question_type: 'subtraction'
-    }
+      difficulty: this.getDifficultyForGrade(grade),
+      question_type: `fraction_${operation}`,
+      grade_level: grade,
+      language
+    };
   }
 
-  private static generateMultiplication(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(2, 12)
-        b = this.randomInt(2, 12)
-        answer = a * b
-        timer = 30
-        break
-      case 'medium':
-        a = this.randomInt(5, 25)
-        b = this.randomInt(5, 25)
-        answer = a * b
-        timer = 45
-        break
-      case 'hard':
-        a = this.randomInt(10, 50)
-        b = this.randomInt(10, 50)
-        answer = a * b
-        timer = 60
-        break
+  // Generate algebra questions based on grade and language
+  static generateAlgebra(grade: number, language: 'french' | 'english'): MathQuestion {
+    const types = ['linear', 'quadratic', 'system'];
+    const type = types[this.randomInt(0, types.length - 1)];
+    
+    let question, correctAnswer, options, timer;
+    
+    if (type === 'linear') {
+      const a = this.randomInt(1, 10);
+      const b = this.randomInt(1, 20);
+      const c = this.randomInt(1, 20);
+      const d = grade > 6 ? this.randomInt(1, 10) : 0;
+      
+      if (d > 0) {
+        question = this.getQuestionTemplate('algebra', grade, language).linear
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString())
+          .replace('{d}', d.toString());
+        correctAnswer = (c - b) / (a - d);
+      } else {
+        question = this.getQuestionTemplate('algebra', grade, language).linear
+          .replace('{a}', a.toString())
+          .replace('{b}', b.toString())
+          .replace('{c}', c.toString());
+        correctAnswer = (c - b) / a;
+      }
+      
+      options = this.generateOptions(correctAnswer, 'linear');
+      timer = grade <= 4 ? 60 : grade <= 8 ? 90 : 120;
+    } else if (type === 'quadratic') {
+      const a = this.randomInt(1, 5);
+      const b = this.randomInt(1, 10);
+      const c = this.randomInt(1, 10);
+      
+      question = this.getQuestionTemplate('algebra', grade, language).quadratic
+        .replace('{a}', a.toString())
+        .replace('{b}', b.toString())
+        .replace('{c}', c.toString());
+      
+      // Simple quadratic formula for x² + bx + c = 0
+      const discriminant = b * b - 4 * a * c;
+      if (discriminant >= 0) {
+        correctAnswer = (-b + Math.sqrt(discriminant)) / (2 * a);
+      } else {
+        correctAnswer = 0; // No real solutions
+      }
+      
+      options = this.generateOptions(correctAnswer, 'quadratic');
+      timer = grade <= 4 ? 90 : grade <= 8 ? 120 : 150;
+    } else { // system
+      const a = this.randomInt(1, 5);
+      const b = this.randomInt(1, 5);
+      const c = this.randomInt(1, 20);
+      const d = this.randomInt(1, 5);
+      const e = this.randomInt(1, 5);
+      const f = this.randomInt(1, 20);
+      
+      question = this.getQuestionTemplate('algebra', grade, language).system
+        .replace('{a}', a.toString())
+        .replace('{b}', b.toString())
+        .replace('{c}', c.toString())
+        .replace('{d}', d.toString())
+        .replace('{e}', e.toString())
+        .replace('{f}', f.toString());
+      
+      // Simple 2x2 system solution
+      const det = a * e - b * d;
+      if (det !== 0) {
+        const x = (c * e - b * f) / det;
+        // const y = (a * f - c * d) / det; // y value not needed for this question
+        correctAnswer = x; // Return x value
+      } else {
+        correctAnswer = 0; // No unique solution
+      }
+      
+      options = this.generateOptions(correctAnswer, 'system');
+      timer = grade <= 4 ? 120 : grade <= 8 ? 150 : 180;
     }
 
-    const question = `What is ${a} × ${b}?`
-    const options = this.generateOptions(answer, difficulty)
-    
+    const correctIndex = options.findIndex(opt => Math.abs(parseFloat(opt) - correctAnswer) < 0.001);
+
     return {
       question_text: question,
       options,
-      correct_answer: options.indexOf(answer.toString()),
+      correct_answer: correctIndex,
       timer_seconds: timer,
-      difficulty,
-      question_type: 'multiplication'
-    }
+      difficulty: this.getDifficultyForGrade(grade),
+      question_type: `${type}_equation`,
+      grade_level: grade,
+      language
+    };
   }
 
-  private static generateDivision(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        b = this.randomInt(2, 12)
-        answer = this.randomInt(2, 12)
-        a = b * answer
-        timer = 30
-        break
-      case 'medium':
-        b = this.randomInt(5, 25)
-        answer = this.randomInt(5, 25)
-        a = b * answer
-        timer = 45
-        break
-      case 'hard':
-        b = this.randomInt(10, 50)
-        answer = this.randomInt(10, 50)
-        a = b * answer
-        timer = 60
-        break
+  // Generate geometry questions based on grade and language
+  static generateGeometry(grade: number, language: 'french' | 'english'): MathQuestion {
+    const types = ['area', 'perimeter', 'volume'];
+    const type = types[this.randomInt(0, types.length - 1)];
+    
+    let question, correctAnswer, options, timer;
+    
+    if (type === 'area') {
+      if (grade <= 4) {
+        // Rectangle area
+        const length = this.randomInt(1, 10);
+        const width = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).area
+          .replace('{a}', length.toString())
+          .replace('{b}', width.toString());
+        correctAnswer = length * width;
+        timer = 45;
+      } else if (grade <= 8) {
+        // Triangle area
+        const base = this.randomInt(1, 10);
+        const height = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).area
+          .replace('{a}', base.toString())
+          .replace('{b}', height.toString());
+        correctAnswer = (base * height) / 2;
+        timer = 60;
+      } else {
+        // Trapezoid area
+        const base1 = this.randomInt(1, 10);
+        const base2 = this.randomInt(1, 10);
+        const height = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).area
+          .replace('{a}', base1.toString())
+          .replace('{b}', base2.toString())
+          .replace('{c}', height.toString());
+        correctAnswer = ((base1 + base2) * height) / 2;
+        timer = 90;
+      }
+    } else if (type === 'perimeter') {
+      if (grade <= 4) {
+        // Rectangle perimeter
+        const length = this.randomInt(1, 10);
+        const width = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).perimeter
+          .replace('{a}', length.toString())
+          .replace('{b}', width.toString());
+        correctAnswer = 2 * (length + width);
+        timer = 45;
+      } else if (grade <= 8) {
+        // Circle perimeter
+        const radius = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).perimeter
+          .replace('{a}', radius.toString());
+        correctAnswer = 2 * Math.PI * radius;
+        timer = 60;
+      } else {
+        // Regular polygon perimeter
+        const sides = this.randomInt(3, 8);
+        const sideLength = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).perimeter
+          .replace('{a}', sides.toString())
+          .replace('{b}', sideLength.toString());
+        correctAnswer = sides * sideLength;
+        timer = 90;
+      }
+    } else { // volume
+      if (grade <= 4) {
+        // Cube volume
+        const side = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).volume
+          .replace('{a}', side.toString());
+        correctAnswer = side * side * side;
+        timer = 60;
+      } else if (grade <= 8) {
+        // Cylinder volume
+        const radius = this.randomInt(1, 10);
+        const height = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).volume
+          .replace('{a}', radius.toString())
+          .replace('{b}', height.toString());
+        correctAnswer = Math.PI * radius * radius * height;
+        timer = 90;
+      } else {
+        // Sphere volume
+        const radius = this.randomInt(1, 10);
+        question = this.getQuestionTemplate('geometry', grade, language).volume
+          .replace('{a}', radius.toString());
+        correctAnswer = (4/3) * Math.PI * radius * radius * radius;
+        timer = 120;
+      }
     }
 
-    const question = `What is ${a} ÷ ${b}?`
-    const options = this.generateOptions(answer, difficulty)
-    
+    options = this.generateOptions(correctAnswer, 'geometry');
+    const correctIndex = options.findIndex(opt => Math.abs(parseFloat(opt) - correctAnswer) < 0.001);
+
     return {
       question_text: question,
       options,
-      correct_answer: options.indexOf(answer.toString()),
+      correct_answer: correctIndex,
       timer_seconds: timer,
-      difficulty,
-      question_type: 'division'
-    }
-  }
-
-  // Generate fraction questions
-  static generateFractions(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    const types = ['addition', 'subtraction', 'multiplication', 'division']
-    const type = types[Math.floor(Math.random() * types.length)]
-    
-    switch (type) {
-      case 'addition':
-        return this.generateFractionAddition(difficulty)
-      case 'subtraction':
-        return this.generateFractionSubtraction(difficulty)
-      case 'multiplication':
-        return this.generateFractionMultiplication(difficulty)
-      case 'division':
-        return this.generateFractionDivision(difficulty)
-      default:
-        return this.generateFractionAddition(difficulty)
-    }
-  }
-
-  private static generateFractionAddition(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, c: number, d: number
-    let answer: string
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(1, 5)
-        b = this.randomInt(2, 8)
-        c = this.randomInt(1, 5)
-        d = b // Same denominator
-        answer = this.simplifyFraction(a + c, d)
-        timer = 45
-        break
-      case 'medium':
-        a = this.randomInt(1, 8)
-        b = this.randomInt(3, 12)
-        c = this.randomInt(1, 8)
-        d = this.randomInt(3, 12)
-        answer = this.addFractions(a, b, c, d)
-        timer = 60
-        break
-      case 'hard':
-        a = this.randomInt(1, 12)
-        b = this.randomInt(5, 20)
-        c = this.randomInt(1, 12)
-        d = this.randomInt(5, 20)
-        answer = this.addFractions(a, b, c, d)
-        timer = 90
-        break
-    }
-
-    const question = `What is ${a}/${b} + ${c}/${d}?`
-    const options = this.generateFractionOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'fraction_addition'
-    }
-  }
-
-  private static generateFractionSubtraction(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, c: number, d: number
-    let answer: string
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(3, 8)
-        b = this.randomInt(2, 8)
-        c = this.randomInt(1, a - 1)
-        d = b // Same denominator
-        answer = this.simplifyFraction(a - c, d)
-        timer = 45
-        break
-      case 'medium':
-        a = this.randomInt(5, 12)
-        b = this.randomInt(3, 12)
-        c = this.randomInt(1, a - 1)
-        d = this.randomInt(3, 12)
-        answer = this.subtractFractions(a, b, c, d)
-        timer = 60
-        break
-      case 'hard':
-        a = this.randomInt(8, 20)
-        b = this.randomInt(5, 20)
-        c = this.randomInt(1, a - 1)
-        d = this.randomInt(5, 20)
-        answer = this.subtractFractions(a, b, c, d)
-        timer = 90
-        break
-    }
-
-    const question = `What is ${a}/${b} - ${c}/${d}?`
-    const options = this.generateFractionOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'fraction_subtraction'
-    }
-  }
-
-  private static generateFractionMultiplication(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, c: number, d: number
-    let answer: string
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(1, 5)
-        b = this.randomInt(2, 8)
-        c = this.randomInt(1, 5)
-        d = this.randomInt(2, 8)
-        answer = this.simplifyFraction(a * c, b * d)
-        timer = 45
-        break
-      case 'medium':
-        a = this.randomInt(1, 8)
-        b = this.randomInt(3, 12)
-        c = this.randomInt(1, 8)
-        d = this.randomInt(3, 12)
-        answer = this.simplifyFraction(a * c, b * d)
-        timer = 60
-        break
-      case 'hard':
-        a = this.randomInt(1, 12)
-        b = this.randomInt(5, 20)
-        c = this.randomInt(1, 12)
-        d = this.randomInt(5, 20)
-        answer = this.simplifyFraction(a * c, b * d)
-        timer = 90
-        break
-    }
-
-    const question = `What is ${a}/${b} × ${c}/${d}?`
-    const options = this.generateFractionOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'fraction_multiplication'
-    }
-  }
-
-  private static generateFractionDivision(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, c: number, d: number
-    let answer: string
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(1, 5)
-        b = this.randomInt(2, 8)
-        c = this.randomInt(1, 5)
-        d = this.randomInt(2, 8)
-        answer = this.simplifyFraction(a * d, b * c)
-        timer = 45
-        break
-      case 'medium':
-        a = this.randomInt(1, 8)
-        b = this.randomInt(3, 12)
-        c = this.randomInt(1, 8)
-        d = this.randomInt(3, 12)
-        answer = this.simplifyFraction(a * d, b * c)
-        timer = 60
-        break
-      case 'hard':
-        a = this.randomInt(1, 12)
-        b = this.randomInt(5, 20)
-        c = this.randomInt(1, 12)
-        d = this.randomInt(5, 20)
-        answer = this.simplifyFraction(a * d, b * c)
-        timer = 90
-        break
-    }
-
-    const question = `What is ${a}/${b} ÷ ${c}/${d}?`
-    const options = this.generateFractionOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'fraction_division'
-    }
-  }
-
-  // Generate algebra questions
-  static generateAlgebra(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    const types = ['linear', 'quadratic', 'system']
-    const type = types[Math.floor(Math.random() * types.length)]
-    
-    switch (type) {
-      case 'linear':
-        return this.generateLinearEquation(difficulty)
-      case 'quadratic':
-        return this.generateQuadraticEquation(difficulty)
-      case 'system':
-        return this.generateSystemOfEquations(difficulty)
-      default:
-        return this.generateLinearEquation(difficulty)
-    }
-  }
-
-  private static generateLinearEquation(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, c: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(1, 5)
-        b = this.randomInt(1, 10)
-        c = this.randomInt(1, 20)
-        answer = (c - b) / a
-        timer = 60
-        break
-      case 'medium':
-        a = this.randomInt(2, 10)
-        b = this.randomInt(1, 20)
-        c = this.randomInt(10, 50)
-        answer = (c - b) / a
-        timer = 90
-        break
-      case 'hard':
-        a = this.randomInt(5, 20)
-        b = this.randomInt(1, 50)
-        c = this.randomInt(50, 200)
-        answer = (c - b) / a
-        timer = 120
-        break
-    }
-
-    const question = `Solve for x: ${a}x + ${b} = ${c}`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'linear_equation'
-    }
-  }
-
-  private static generateQuadraticEquation(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    // For simplicity, we'll generate equations that factor nicely
-    let a: number, b: number, c: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = 1
-        b = this.randomInt(-10, 10)
-        c = this.randomInt(-10, 10)
-        // Find a solution
-        answer = this.randomInt(-5, 5)
-        timer = 90
-        break
-      case 'medium':
-        a = this.randomInt(1, 3)
-        b = this.randomInt(-15, 15)
-        c = this.randomInt(-15, 15)
-        answer = this.randomInt(-8, 8)
-        timer = 120
-        break
-      case 'hard':
-        a = this.randomInt(1, 5)
-        b = this.randomInt(-20, 20)
-        c = this.randomInt(-20, 20)
-        answer = this.randomInt(-10, 10)
-        timer = 150
-        break
-    }
-
-    const question = `Solve for x: ${a}x² + ${b}x + ${c} = 0 (find one solution)`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'quadratic_equation'
-    }
-  }
-
-  private static generateSystemOfEquations(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let a: number, b: number, c: number, d: number, e: number, f: number
-    let x: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        a = this.randomInt(1, 3)
-        b = this.randomInt(1, 3)
-        c = this.randomInt(1, 10)
-        d = this.randomInt(1, 3)
-        e = this.randomInt(1, 3)
-        f = this.randomInt(1, 10)
-        x = this.randomInt(1, 5)
-        timer = 120
-        break
-      case 'medium':
-        a = this.randomInt(1, 5)
-        b = this.randomInt(1, 5)
-        c = this.randomInt(1, 20)
-        d = this.randomInt(1, 5)
-        e = this.randomInt(1, 5)
-        f = this.randomInt(1, 20)
-        x = this.randomInt(1, 8)
-        timer = 150
-        break
-      case 'hard':
-        a = this.randomInt(1, 10)
-        b = this.randomInt(1, 10)
-        c = this.randomInt(1, 50)
-        d = this.randomInt(1, 10)
-        e = this.randomInt(1, 10)
-        f = this.randomInt(1, 50)
-        x = this.randomInt(1, 10)
-        timer = 180
-        break
-    }
-
-    const question = `Solve the system: ${a}x + ${b}y = ${c}, ${d}x + ${e}y = ${f}. What is the value of x?`
-    const options = this.generateOptions(x, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(x.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'system_of_equations'
-    }
-  }
-
-  // Generate geometry questions
-  static generateGeometry(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    const types = ['area', 'perimeter', 'volume', 'angles']
-    const type = types[Math.floor(Math.random() * types.length)]
-    
-    switch (type) {
-      case 'area':
-        return this.generateAreaQuestion(difficulty)
-      case 'perimeter':
-        return this.generatePerimeterQuestion(difficulty)
-      case 'volume':
-        return this.generateVolumeQuestion(difficulty)
-      case 'angles':
-        return this.generateAngleQuestion(difficulty)
-      default:
-        return this.generateAreaQuestion(difficulty)
-    }
-  }
-
-  private static generateAreaQuestion(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    const shapes = ['rectangle', 'triangle', 'circle']
-    const shape = shapes[Math.floor(Math.random() * shapes.length)]
-    
-    switch (shape) {
-      case 'rectangle':
-        return this.generateRectangleArea(difficulty)
-      case 'triangle':
-        return this.generateTriangleArea(difficulty)
-      case 'circle':
-        return this.generateCircleArea(difficulty)
-      default:
-        return this.generateRectangleArea(difficulty)
-    }
-  }
-
-  private static generateRectangleArea(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let length: number, width: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        length = this.randomInt(2, 10)
-        width = this.randomInt(2, 10)
-        answer = length * width
-        timer = 45
-        break
-      case 'medium':
-        length = this.randomInt(5, 20)
-        width = this.randomInt(5, 20)
-        answer = length * width
-        timer = 60
-        break
-      case 'hard':
-        length = this.randomInt(10, 50)
-        width = this.randomInt(10, 50)
-        answer = length * width
-        timer = 90
-        break
-    }
-
-    const question = `What is the area of a rectangle with length ${length} and width ${width}?`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'rectangle_area'
-    }
-  }
-
-  private static generateTriangleArea(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let base: number, height: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        base = this.randomInt(3, 10)
-        height = this.randomInt(3, 10)
-        answer = Math.round((base * height) / 2)
-        timer = 45
-        break
-      case 'medium':
-        base = this.randomInt(5, 20)
-        height = this.randomInt(5, 20)
-        answer = Math.round((base * height) / 2)
-        timer = 60
-        break
-      case 'hard':
-        base = this.randomInt(10, 50)
-        height = this.randomInt(10, 50)
-        answer = Math.round((base * height) / 2)
-        timer = 90
-        break
-    }
-
-    const question = `What is the area of a triangle with base ${base} and height ${height}?`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'triangle_area'
-    }
-  }
-
-  private static generateCircleArea(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let radius: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        radius = this.randomInt(2, 10)
-        answer = Math.round(Math.PI * radius * radius)
-        timer = 60
-        break
-      case 'medium':
-        radius = this.randomInt(5, 20)
-        answer = Math.round(Math.PI * radius * radius)
-        timer = 90
-        break
-      case 'hard':
-        radius = this.randomInt(10, 50)
-        answer = Math.round(Math.PI * radius * radius)
-        timer = 120
-        break
-    }
-
-    const question = `What is the area of a circle with radius ${radius}? (Use π ≈ 3.14)`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'circle_area'
-    }
-  }
-
-  private static generatePerimeterQuestion(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let length: number, width: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        length = this.randomInt(3, 10)
-        width = this.randomInt(3, 10)
-        answer = 2 * (length + width)
-        timer = 45
-        break
-      case 'medium':
-        length = this.randomInt(5, 20)
-        width = this.randomInt(5, 20)
-        answer = 2 * (length + width)
-        timer = 60
-        break
-      case 'hard':
-        length = this.randomInt(10, 50)
-        width = this.randomInt(10, 50)
-        answer = 2 * (length + width)
-        timer = 90
-        break
-    }
-
-    const question = `What is the perimeter of a rectangle with length ${length} and width ${width}?`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'rectangle_perimeter'
-    }
-  }
-
-  private static generateVolumeQuestion(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let length: number, width: number, height: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        length = this.randomInt(2, 8)
-        width = this.randomInt(2, 8)
-        height = this.randomInt(2, 8)
-        answer = length * width * height
-        timer = 60
-        break
-      case 'medium':
-        length = this.randomInt(5, 15)
-        width = this.randomInt(5, 15)
-        height = this.randomInt(5, 15)
-        answer = length * width * height
-        timer = 90
-        break
-      case 'hard':
-        length = this.randomInt(10, 30)
-        width = this.randomInt(10, 30)
-        height = this.randomInt(10, 30)
-        answer = length * width * height
-        timer = 120
-        break
-    }
-
-    const question = `What is the volume of a rectangular prism with length ${length}, width ${width}, and height ${height}?`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'rectangular_prism_volume'
-    }
-  }
-
-  private static generateAngleQuestion(difficulty: 'easy' | 'medium' | 'hard'): MathQuestion {
-    let angle1: number, angle2: number, answer: number
-    let timer: number
-
-    switch (difficulty) {
-      case 'easy':
-        angle1 = this.randomInt(30, 60)
-        angle2 = this.randomInt(30, 60)
-        answer = 180 - angle1 - angle2
-        timer = 45
-        break
-      case 'medium':
-        angle1 = this.randomInt(20, 80)
-        angle2 = this.randomInt(20, 80)
-        answer = 180 - angle1 - angle2
-        timer = 60
-        break
-      case 'hard':
-        angle1 = this.randomInt(10, 100)
-        angle2 = this.randomInt(10, 100)
-        answer = 180 - angle1 - angle2
-        timer = 90
-        break
-    }
-
-    const question = `In a triangle, two angles are ${angle1}° and ${angle2}°. What is the measure of the third angle?`
-    const options = this.generateOptions(answer, difficulty)
-    
-    return {
-      question_text: question,
-      options,
-      correct_answer: options.indexOf(answer.toString()),
-      timer_seconds: timer,
-      difficulty,
-      question_type: 'triangle_angle'
-    }
+      difficulty: this.getDifficultyForGrade(grade),
+      question_type: `${type}_geometry`,
+      grade_level: grade,
+      language
+    };
   }
 
   // Helper methods
-  private static generateOptions(correctAnswer: number, difficulty: 'easy' | 'medium' | 'hard'): string[] {
-    const options = new Set<string>()
-    options.add(correctAnswer.toString())
-
-    let range: number
-    switch (difficulty) {
-      case 'easy':
-        range = 5
-        break
-      case 'medium':
-        range = 10
-        break
-      case 'hard':
-        range = 20
-        break
-    }
-
+  private static generateOptions(correctAnswer: number, operation: string): string[] {
+    const options = new Set<string>();
+    options.add(correctAnswer.toString());
+    
+    // Generate wrong options based on operation
     while (options.size < 4) {
-      const wrongAnswer = correctAnswer + this.randomInt(-range, range)
+      let wrongAnswer;
+      if (operation === 'addition') {
+        wrongAnswer = correctAnswer + this.randomInt(-10, 10);
+      } else if (operation === 'subtraction') {
+        wrongAnswer = correctAnswer + this.randomInt(-10, 10);
+      } else if (operation === 'multiplication') {
+        wrongAnswer = correctAnswer + this.randomInt(-20, 20);
+      } else if (operation === 'division') {
+        wrongAnswer = correctAnswer + this.randomInt(-5, 5);
+      } else if (operation === 'linear') {
+        wrongAnswer = correctAnswer + this.randomInt(-5, 5);
+      } else if (operation === 'quadratic') {
+        wrongAnswer = correctAnswer + this.randomInt(-10, 10);
+      } else if (operation === 'system') {
+        wrongAnswer = correctAnswer + this.randomInt(-5, 5);
+      } else if (operation === 'geometry') {
+        wrongAnswer = correctAnswer + this.randomInt(-10, 10);
+      } else {
+        wrongAnswer = correctAnswer + this.randomInt(-10, 10);
+      }
+      
       if (wrongAnswer !== correctAnswer && wrongAnswer > 0) {
-        options.add(wrongAnswer.toString())
+        options.add(wrongAnswer.toString());
       }
     }
-
-    return Array.from(options).sort(() => Math.random() - 0.5)
+    
+    return Array.from(options).sort(() => Math.random() - 0.5);
   }
 
-  private static generateFractionOptions(correctAnswer: string, difficulty: 'easy' | 'medium' | 'hard'): string[] {
-    const options = new Set<string>()
-    options.add(correctAnswer)
-
-    const [num, den] = correctAnswer.split('/').map(Number)
-    let range: number
-    switch (difficulty) {
-      case 'easy':
-        range = 2
-        break
-      case 'medium':
-        range = 5
-        break
-      case 'hard':
-        range = 10
-        break
-    }
-
+  private static generateFractionOptions(correctAnswer: number): string[] {
+    const options = new Set<string>();
+    options.add(correctAnswer.toFixed(2));
+    
     while (options.size < 4) {
-      const wrongNum = num + this.randomInt(-range, range)
-      const wrongDen = den + this.randomInt(-range, range)
-      if (wrongNum > 0 && wrongDen > 0 && wrongNum !== num && wrongDen !== den) {
-        options.add(`${wrongNum}/${wrongDen}`)
+      const wrongAnswer = correctAnswer + this.randomFloat(-2, 2, 2);
+      if (Math.abs(wrongAnswer - correctAnswer) > 0.01) {
+        options.add(wrongAnswer.toFixed(2));
       }
     }
-
-    return Array.from(options).sort(() => Math.random() - 0.5)
-  }
-
-  private static simplifyFraction(numerator: number, denominator: number): string {
-    const gcd = this.gcd(numerator, denominator)
-    const simplifiedNum = numerator / gcd
-    const simplifiedDen = denominator / gcd
     
-    if (simplifiedDen === 1) {
-      return simplifiedNum.toString()
-    }
-    
-    return `${simplifiedNum}/${simplifiedDen}`
+    return Array.from(options).sort(() => Math.random() - 0.5);
   }
 
-  private static addFractions(a: number, b: number, c: number, d: number): string {
-    const numerator = a * d + c * b
-    const denominator = b * d
-    return this.simplifyFraction(numerator, denominator)
-  }
-
-  private static subtractFractions(a: number, b: number, c: number, d: number): string {
-    const numerator = a * d - c * b
-    const denominator = b * d
-    return this.simplifyFraction(numerator, denominator)
-  }
-
-  private static gcd(a: number, b: number): number {
-    return b === 0 ? a : this.gcd(b, a % b)
-  }
-
-  // Main generator method
+  // Main generator method with grade and language support
   static generateQuestions(
     count: number,
-    categories: string[] = ['arithmetic', 'fractions', 'algebra', 'geometry'],
-    difficulty: 'easy' | 'medium' | 'hard' = 'medium'
+    grade: number,
+    language: 'french' | 'english',
+    categories: string[] = ['arithmetic', 'fractions', 'algebra', 'geometry']
   ): MathQuestion[] {
-    const questions: MathQuestion[] = []
+    const questions: MathQuestion[] = [];
+    const questionsPerCategory = Math.ceil(count / categories.length);
     
-    for (let i = 0; i < count; i++) {
-      const category = categories[Math.floor(Math.random() * categories.length)]
-      
-      switch (category) {
-        case 'arithmetic':
-          questions.push(this.generateArithmetic(difficulty))
-          break
-        case 'fractions':
-          questions.push(this.generateFractions(difficulty))
-          break
-        case 'algebra':
-          questions.push(this.generateAlgebra(difficulty))
-          break
-        case 'geometry':
-          questions.push(this.generateGeometry(difficulty))
-          break
-        default:
-          questions.push(this.generateArithmetic(difficulty))
+    for (const category of categories) {
+      for (let i = 0; i < questionsPerCategory && questions.length < count; i++) {
+        let question: MathQuestion;
+        
+        switch (category) {
+          case 'arithmetic':
+            question = this.generateArithmetic(grade, language);
+            break;
+          case 'fractions':
+            question = this.generateFractions(grade, language);
+            break;
+          case 'algebra':
+            question = this.generateAlgebra(grade, language);
+            break;
+          case 'geometry':
+            question = this.generateGeometry(grade, language);
+            break;
+          default:
+            question = this.generateArithmetic(grade, language);
+        }
+        
+        questions.push(question);
       }
     }
     
-    return questions
+    return questions.slice(0, count);
   }
 }

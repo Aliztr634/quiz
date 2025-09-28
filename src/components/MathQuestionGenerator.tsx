@@ -34,10 +34,11 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
   onClose
 }) => {
   const [questionCount, setQuestionCount] = useState(5)
-  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
   const [categories, setCategories] = useState<string[]>(['arithmetic'])
   const [generatedQuestions, setGeneratedQuestions] = useState<MathQuestion[]>([])
   const [previewIndex, setPreviewIndex] = useState(0)
+  const [gradeLevel, setGradeLevel] = useState<number>(6)
+  const [language, setLanguage] = useState<'french' | 'english'>('english')
 
   const availableCategories = [
     { value: 'arithmetic', label: 'Arithmetic', description: 'Addition, subtraction, multiplication, division' },
@@ -47,14 +48,14 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
   ]
 
   const handleGenerateQuestions = () => {
-    const questions = MathQuestionGenerator.generateQuestions(questionCount, categories, difficulty)
+    const questions = MathQuestionGenerator.generateQuestions(questionCount, gradeLevel, language, categories)
     setGeneratedQuestions(questions)
     setPreviewIndex(0)
   }
 
   const handleRegenerateQuestion = (index: number) => {
     const newQuestions = [...generatedQuestions]
-    const newQuestion = MathQuestionGenerator.generateQuestions(1, categories, difficulty)[0]
+    const newQuestion = MathQuestionGenerator.generateQuestions(1, gradeLevel, language, categories)[0]
     newQuestions[index] = newQuestion
     setGeneratedQuestions(newQuestions)
   }
@@ -68,7 +69,7 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
   }
 
   const handleAddQuestion = () => {
-    const newQuestion = MathQuestionGenerator.generateQuestions(1, categories, difficulty)[0]
+    const newQuestion = MathQuestionGenerator.generateQuestions(1, gradeLevel, language, categories)[0]
     setGeneratedQuestions([...generatedQuestions, newQuestion])
   }
 
@@ -136,15 +137,29 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
 
             <Box sx={{ flex: 1 }}>
               <FormControl fullWidth>
-                <InputLabel>Difficulty Level</InputLabel>
+                <InputLabel>Grade Level</InputLabel>
                 <Select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
-                  label="Difficulty Level"
+                  value={gradeLevel}
+                  onChange={(e) => setGradeLevel(Number(e.target.value))}
+                  label="Grade Level"
                 >
-                  <MenuItem value="easy">Easy</MenuItem>
-                  <MenuItem value="medium">Medium</MenuItem>
-                  <MenuItem value="hard">Hard</MenuItem>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(grade => (
+                    <MenuItem key={grade} value={grade}>Grade {grade}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+
+            <Box sx={{ flex: 1 }}>
+              <FormControl fullWidth>
+                <InputLabel>Language</InputLabel>
+                <Select
+                  value={language}
+                  onChange={(e) => setLanguage(e.target.value as 'french' | 'english')}
+                  label="Language"
+                >
+                  <MenuItem value="english">English</MenuItem>
+                  <MenuItem value="french">French</MenuItem>
                 </Select>
               </FormControl>
             </Box>
@@ -400,15 +415,26 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
             <br />
             1. Select the number of questions you want to generate
             <br />
-            2. Choose the difficulty level (Easy, Medium, Hard)
+            2. Choose the grade level (1-12) based on Lebanese curriculum
             <br />
-            3. Select one or more question categories
+            3. Select the language (English or French)
             <br />
-            4. Click "Generate Questions" to create your math questions
+            4. Select one or more question categories
             <br />
-            5. Preview and customize the questions as needed
+            5. Click "Generate Questions" to create your math questions
             <br />
-            6. Click "Save Questions" to add them to your exam
+            6. Preview and customize the questions as needed
+            <br />
+            7. Click "Save Questions" to add them to your exam
+            <br />
+            <br />
+            <strong>Lebanese Curriculum Support:</strong>
+            <br />
+            • Grades 1-4: Basic arithmetic, simple fractions
+            <br />
+            • Grades 5-8: Intermediate math, algebra basics, geometry
+            <br />
+            • Grades 9-12: Advanced algebra, complex geometry, trigonometry
           </Typography>
         </Alert>
       )}
