@@ -468,7 +468,9 @@ export class MathQuestionGenerator {
           .replace('{d}', d.toString());
         correctAnswer = (c - b) / (a - d);
       } else {
-        question = this.getQuestionTemplate('algebra', grade, language).linear
+        // For grades <= 6, use the easy template which doesn't have {d}
+        const easyTemplate = this.getQuestionTemplate('algebra', 4, language).linear; // Force easy template
+        question = easyTemplate
           .replace('{a}', a.toString())
           .replace('{b}', b.toString())
           .replace('{c}', c.toString());
