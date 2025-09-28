@@ -35,8 +35,10 @@ export class MathQuestionGenerator {
       return { min: 1, max: 50 };
     } else if (grade <= 8) {
       return { min: 1, max: 100 };
+    } else if (grade <= 10) {
+      return { min: 1, max: 500 }; // Reduced range for better performance
     } else {
-      return { min: 1, max: 1000 };
+      return { min: 1, max: 200 }; // Even smaller range for grade 11-12
     }
   }
 

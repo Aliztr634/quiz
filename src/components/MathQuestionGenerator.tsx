@@ -13,7 +13,9 @@ import {
   Alert,
   Divider,
   IconButton,
-  Tooltip
+  Tooltip,
+  LinearProgress,
+  CircularProgress
 } from '@mui/material'
 import {
   Add,
@@ -39,6 +41,9 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
   const [previewIndex, setPreviewIndex] = useState(0)
   const [gradeLevel, setGradeLevel] = useState<number>(6)
   const [language, setLanguage] = useState<'french' | 'english'>('english')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState(0)
+  const [generationCancelled, setGenerationCancelled] = useState(false)
 
   const availableCategories = [
     { value: 'arithmetic', label: 'Arithmetic', description: 'Addition, subtraction, multiplication, division' },
@@ -47,10 +52,161 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
     { value: 'geometry', label: 'Geometry', description: 'Area, perimeter, volume, angles' }
   ]
 
-  const handleGenerateQuestions = () => {
-    const questions = MathQuestionGenerator.generateQuestions(questionCount, gradeLevel, language, categories)
-    setGeneratedQuestions(questions)
+  // Helper function to yield control to browser
+  const yieldToBrowser = () => {
+    return new Promise(resolve => {
+      setTimeout(resolve, 0)
+    })
+  }
+
+  const handleGenerateQuestions = async () => {
+    // Calculate complexity factor based on categories and grade
+    const categoryCount = categories.length
+    const complexityFactor = Math.max(1, categoryCount * 0.8) // More aggressive reduction for categories
+    
+    // Much more conservative limits to prevent freezing
+    const baseMaxQuestions = gradeLevel >= 12 ? 2 : 
+                            gradeLevel >= 10 ? 3 : 
+                            gradeLevel >= 8 ? 4 :
+                            gradeLevel >= 6 ? 6 :
+                            gradeLevel >= 4 ? 8 :
+                            gradeLevel >= 3 ? 10 :
+                            12
+    
+    const maxQuestions = Math.max(1, Math.floor(baseMaxQuestions / complexityFactor))
+    const actualQuestionCount = Math.min(questionCount, maxQuestions)
+    
+    if (actualQuestionCount < questionCount) {
+      alert(`For Grade ${gradeLevel} with ${categoryCount} categories, maximum ${actualQuestionCount} questions recommended to prevent freezing.`)
+    }
+    
+    setIsGenerating(true)
+    setGenerationProgress(0)
+    setGeneratedQuestions([])
     setPreviewIndex(0)
+    setGenerationCancelled(false)
+    
+    const questions: MathQuestion[] = []
+    
+    // Calculate delay based on grade level - much more conservative delays
+    const getDelay = (grade: number) => {
+      if (grade <= 3) return 500      // Even easy questions need more time with categories
+      if (grade <= 4) return 800      // Easy questions - slower
+      if (grade <= 6) return 1200     // Medium-easy questions - much slower
+      if (grade <= 8) return 1800     // Medium questions - very slow
+      if (grade <= 10) return 2500    // Hard questions - extremely slow
+      if (grade <= 12) return 3500    // Very hard questions - maximum slow
+      return 4000                     // Maximum delay
+    }
+    
+    // Apply much more aggressive category complexity multiplier
+    const baseDelay = getDelay(gradeLevel)
+    const categoryMultiplier = Math.max(1, categoryCount * 0.6) // Much more delay for categories
+    const delay = Math.floor(baseDelay * categoryMultiplier)
+    
+    // Generate questions one by one with adaptive delay to prevent crashes
+    for (let i = 0; i < actualQuestionCount; i++) {
+      // Check if generation was cancelled
+      if (generationCancelled) {
+        break
+      }
+      
+      try {
+        // Yield control to browser before generating
+        await yieldToBrowser()
+        
+        // Generate one question at a time
+        const singleQuestion = MathQuestionGenerator.generateQuestions(1, gradeLevel, language, categories)
+        questions.push(singleQuestion[0])
+        
+        // Yield control to browser after generating
+        await yieldToBrowser()
+        
+        // Update progress
+        setGenerationProgress(Math.round(((i + 1) / actualQuestionCount) * 100))
+        setGeneratedQuestions([...questions])
+        
+        // Yield control to browser after updating UI
+        await yieldToBrowser()
+        
+        // Adaptive delay based on grade level to prevent UI freezing
+        await new Promise(resolve => setTimeout(resolve, delay))
+        
+        // Additional delay for all grades with categories
+        if (gradeLevel >= 3) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+        
+        if (gradeLevel >= 6) {
+          await new Promise(resolve => setTimeout(resolve, 400))
+        }
+        
+        if (gradeLevel >= 8) {
+          await new Promise(resolve => setTimeout(resolve, 600))
+        }
+        
+        if (gradeLevel >= 10) {
+          await new Promise(resolve => setTimeout(resolve, 800))
+        }
+        
+        // Much more aggressive delays for multiple categories
+        if (categoryCount > 1) {
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
+        
+        if (categoryCount > 2) {
+          await new Promise(resolve => setTimeout(resolve, 600))
+        }
+        
+        if (categoryCount > 3) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+        
+        // Yield control to browser for all grades with categories
+        if (gradeLevel >= 3) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+        
+        if (gradeLevel >= 6) {
+          await new Promise(resolve => setTimeout(resolve, 300))
+        }
+        
+        if (gradeLevel >= 8) {
+          await new Promise(resolve => setTimeout(resolve, 400))
+        }
+        
+        if (gradeLevel >= 10) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        
+        // Extra yield every 2 questions for grade 6+
+        if (gradeLevel >= 6 && (i + 1) % 2 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+        
+        // Extra yield every question for grade 10+
+        if (gradeLevel >= 10) {
+          await new Promise(resolve => setTimeout(resolve, 800))
+        }
+        
+        // Maximum yield for grade 12
+        if (gradeLevel >= 12) {
+          await new Promise(resolve => setTimeout(resolve, 1200))
+        }
+        
+      } catch (error) {
+        console.error('Error generating question:', error)
+        // Continue with next question even if one fails
+      }
+    }
+    
+    setIsGenerating(false)
+    setGenerationProgress(100)
+  }
+
+  const handleStopGeneration = () => {
+    setGenerationCancelled(true)
+    setIsGenerating(false)
   }
 
   const handleRegenerateQuestion = (index: number) => {
@@ -164,20 +320,58 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
               </FormControl>
             </Box>
 
-            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
               <Button
                 variant="contained"
-                startIcon={<Add />}
+                startIcon={isGenerating ? <CircularProgress size={20} color="inherit" /> : <Add />}
                 onClick={handleGenerateQuestions}
                 fullWidth
                 size="large"
+                disabled={isGenerating}
               >
-                Generate Questions
+                {isGenerating ? `Generating... ${generationProgress}%` : 'Generate Questions'}
               </Button>
+              {isGenerating && (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={handleStopGeneration}
+                  size="large"
+                >
+                  Stop
+                </Button>
+              )}
             </Box>
           </Box>
 
           <Divider sx={{ my: 2 }} />
+
+          {/* Progress Bar */}
+          {isGenerating && (
+            <Box sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mr: 2 }}>
+                  Generating Grade {gradeLevel} Questions...
+                </Typography>
+                <Typography variant="body2" color="primary">
+                  {generationProgress}%
+                </Typography>
+              </Box>
+              <LinearProgress 
+                variant="determinate" 
+                value={generationProgress} 
+                sx={{ height: 8, borderRadius: 4 }}
+              />
+              {gradeLevel >= 3 && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  {gradeLevel >= 10 ? 'High-grade questions take much longer to generate. Please be very patient...' : 
+                   gradeLevel >= 8 ? 'Grade 8+ questions generate very slowly to prevent freezing. Please be patient...' : 
+                   gradeLevel >= 6 ? 'Grade 6+ questions generate slowly to prevent freezing. Please be patient...' :
+                   'Grade 3+ questions generate slowly to prevent freezing. Please be patient...'}
+                </Typography>
+              )}
+            </Box>
+          )}
 
           <Typography variant="h6" gutterBottom>
             Question Categories
@@ -199,6 +393,25 @@ const MathQuestionGeneratorComponent: React.FC<MathQuestionGeneratorProps> = ({
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             Select one or more categories to include in your questions
           </Typography>
+          
+          {(questionCount > 10 || gradeLevel >= 3 || categories.length > 1) && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              <Typography variant="body2">
+                <strong>Complex Generation:</strong> 
+                {questionCount > 10 && ` Generating ${questionCount} questions`}
+                {gradeLevel >= 3 && ` Grade ${gradeLevel} questions`}
+                {categories.length > 1 && ` with ${categories.length} categories`}
+                {questionCount > 10 && gradeLevel >= 3 && ' with complexity'} may take some time. 
+                Questions are generated one by one very slowly to prevent crashes. You can stop generation at any time.
+                {gradeLevel >= 3 && (
+                  <><br/><strong>Conservative limits:</strong> Grade 3-4: max 8-10, Grade 6-8: max 4-6, Grade 10-12: max 2-3 questions</>
+                )}
+                {categories.length > 1 && (
+                  <><br/><strong>Multiple categories:</strong> Each additional category significantly reduces question count to prevent freezing</>
+                )}
+              </Typography>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
